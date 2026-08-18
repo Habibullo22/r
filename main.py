@@ -710,17 +710,19 @@ def other_messages(message):
 # =========================
 # START BOT
 # =========================
-
 if name == "main":
-
     init_database()
 
     print("================================")
-    print("🤖 TELEGRAM SEARCH BOT")
+    print("🤖 BOT ISHGA TUSHDI")
     print("================================")
-    print("✅ Bot ishga tushdi!")
 
     bot.infinity_polling(
+        skip_pending=True,
+        timeout=60,
+        long_polling_timeout=60
+    )
+
         skip_pending=True,
         timeout=60,
         long_polling_timeout=60
