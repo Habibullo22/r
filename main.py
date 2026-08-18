@@ -24,14 +24,14 @@ from telegram_client import create_client
 
 
 # ==================================================
-# BOTNI TEKSHIRISH
+# TEKSHIRUV
 # ==================================================
 
 if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN .env faylida topilmadi!")
+    raise RuntimeError("BOT_TOKEN topilmadi!")
 
 if not ADMIN_ID:
-    raise RuntimeError("ADMIN_ID .env faylida topilmadi!")
+    raise RuntimeError("ADMIN_ID topilmadi!")
 
 
 # ==================================================
@@ -42,14 +42,14 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 
 # ==================================================
-# TELEGRAM USER ACCOUNT CLIENT
+# TELEGRAM ACCOUNT CLIENT
 # ==================================================
 
 telegram_client = create_client()
 
 
 # ==================================================
-# VAQTINCHA CHEK KUTISH
+# CHEK KUTILAYOTGAN FOYDALANUVCHILAR
 # ==================================================
 
 waiting_receipt = {}
@@ -110,7 +110,7 @@ def main_menu():
 
 
 # ==================================================
-# TARIFLAR MENYUSI
+# TARIFLAR
 # ==================================================
 
 def tariffs_menu():
@@ -119,17 +119,6 @@ def tariffs_menu():
 
     tariffs = get_tariffs()
 
-    if not tariffs:
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "⬅️ Orqaga",
-                callback_data="back_main"
-            )
-        )
-
-        return markup
-
     for tariff in tariffs:
 
         tariff_id = tariff[0]
@@ -137,13 +126,15 @@ def tariffs_menu():
         price = tariff[2]
         days = tariff[3]
 
-        button_text = (
-            f"{name} — {price:,} so‘m / {days} kun"
+        text = (
+            f"{name} — "
+            f"{price:,} so‘m / "
+            f"{days} kun"
         ).replace(",", " ")
 
         markup.add(
             types.InlineKeyboardButton(
-                button_text,
+                text,
                 callback_data=f"tariff_{tariff_id}"
             )
         )
@@ -191,19 +182,26 @@ def start(message):
 
 
 # ==================================================
-# CALLBACKLAR
+# ODDIY CALLBACKLAR
+#
+# MUHIM:
+# approve_ va reject_ BU HANDLERGA KIRMAYDI
 # ==================================================
 
-@bot.callback_query_handler(func=lambda call: True)
+@bot.callback_query_handler(
+    func=lambda call:
+        not call.data.startswith("approve_")
+        and not call.data.startswith("reject_")
+)
 def callbacks(call):
 
     user_id = call.from_user.id
 
     try:
 
-        # ==========================================
+        # ==================================================
         # TARIFLAR
-        # ==========================================
+        # ==================================================
 
         if call.data == "tariffs":
 
@@ -222,9 +220,9 @@ def callbacks(call):
 
             return
 
-        # ==========================================
+        # ==================================================
         # TARIF TANLASH
-        # ==========================================
+        # ==================================================
 
         if call.data.startswith("tariff_"):
 
@@ -282,9 +280,9 @@ def callbacks(call):
 
             return
 
-        # ==========================================
+        # ==================================================
         # SOTIB OLISH
-        # ==========================================
+        # ==================================================
 
         if call.data.startswith("buy_"):
 
@@ -346,9 +344,9 @@ def callbacks(call):
 
             return
 
-        # ==========================================
+        # ==================================================
         # CHEK YUBORISH
-        # ==========================================
+        # ==================================================
 
         if call.data.startswith("receipt_"):
 
@@ -386,9 +384,9 @@ def callbacks(call):
 
             return
 
-        # ==========================================
+        # ==================================================
         # QIDIRUV
-        # ==========================================
+        # ==================================================
 
         if call.data == "search_user":
 
@@ -424,9 +422,9 @@ def callbacks(call):
 
             return
 
-        # ==========================================
+        # ==================================================
         # GURUHLAR
-        # ==========================================
+        # ==================================================
 
         if call.data == "groups":
 
@@ -446,16 +444,16 @@ def callbacks(call):
                 call.message.chat.id,
 
                 "👥 <b>Guruhlar</b>\n\n"
-                "Real qidiruv moduli ulanmoqda.",
+                "Qidiruv moduli ulanmoqda.",
 
                 parse_mode="HTML"
             )
 
             return
 
-        # ==========================================
+        # ==================================================
         # KANALLAR
-        # ==========================================
+        # ==================================================
 
         if call.data == "channels":
 
@@ -475,16 +473,16 @@ def callbacks(call):
                 call.message.chat.id,
 
                 "📢 <b>Kanallar</b>\n\n"
-                "Real qidiruv moduli ulanmoqda.",
+                "Qidiruv moduli ulanmoqda.",
 
                 parse_mode="HTML"
             )
 
             return
 
-        # ==========================================
+        # ==================================================
         # XABARLAR
-        # ==========================================
+        # ==================================================
 
         if call.data == "messages":
 
@@ -504,16 +502,16 @@ def callbacks(call):
                 call.message.chat.id,
 
                 "💬 <b>Qayerda yozgan</b>\n\n"
-                "Real qidiruv moduli ulanmoqda.",
+                "Qidiruv moduli ulanmoqda.",
 
                 parse_mode="HTML"
             )
 
             return
 
-        # ==========================================
+        # ==================================================
         # REAKSIYALAR
-        # ==========================================
+        # ==================================================
 
         if call.data == "reactions":
 
@@ -541,9 +539,9 @@ def callbacks(call):
 
             return
 
-        # ==========================================
+        # ==================================================
         # TO‘LIQ MA'LUMOT
-        # ==========================================
+        # ==================================================
 
         if call.data == "full_info":
 
@@ -571,9 +569,9 @@ def callbacks(call):
 
             return
 
-        # ==========================================
-        # ASOSIY MENYU
-        # ==========================================
+        # ==================================================
+        # ORQAGA
+        # ==================================================
 
         if call.data == "back_main":
 
@@ -597,13 +595,11 @@ def callbacks(call):
         print("CALLBACK ERROR:", e)
 
         try:
-
             bot.answer_callback_query(
                 call.id,
                 "❌ Xatolik yuz berdi.",
                 show_alert=True
             )
-
         except Exception:
             pass
 
@@ -634,7 +630,7 @@ def receive_receipt(message):
 
     if not purchase:
 
-        del waiting_receipt[user_id]
+        waiting_receipt.pop(user_id, None)
 
         bot.send_message(
             message.chat.id,
@@ -663,14 +659,19 @@ def receive_receipt(message):
     else:
         username_text = "Username yo‘q"
 
-    price = purchase[8]
+    try:
+        tariff_name = purchase[7]
+        price = purchase[8]
+    except Exception:
+        tariff_name = "Noma’lum"
+        price = 0
 
     admin_text = (
         "💳 <b>YANGI TO‘LOV</b>\n\n"
         f"🧾 Ariza: <code>#{purchase_id}</code>\n"
         f"👤 Foydalanuvchi: {username_text}\n"
         f"🆔 ID: <code>{user_id}</code>\n"
-        f"📦 Tarif: <b>{purchase[7]}</b>\n"
+        f"📦 Tarif: <b>{tariff_name}</b>\n"
         f"💰 Summa: <b>{price:,} so‘m</b>"
     ).replace(",", " ")
 
@@ -688,11 +689,14 @@ def receive_receipt(message):
         "⏳ Tasdiqlanishini kuting."
     )
 
-    del waiting_receipt[user_id]
+    waiting_receipt.pop(user_id, None)
 
 
 # ==================================================
-# ADMIN TO‘LOV QARORI
+# ADMIN TASDIQLASH / RAD ETISH
+#
+# BU HANDLER UMUMIY CALLBACKDAN OLDIN
+# RO‘YXATDAN O‘TKAZILADI
 # ==================================================
 
 @bot.callback_query_handler(
@@ -714,9 +718,9 @@ def admin_payment_callback(call):
 
     try:
 
-        # ==========================================
+        # ==================================================
         # TASDIQLASH
-        # ==========================================
+        # ==================================================
 
         if call.data.startswith("approve_"):
 
@@ -732,17 +736,7 @@ def admin_payment_callback(call):
 
                 bot.answer_callback_query(
                     call.id,
-                    "Ariza topilmadi.",
-                    show_alert=True
-                )
-
-                return
-
-            if purchase[3] == "approved":
-
-                bot.answer_callback_query(
-                    call.id,
-                    "Bu ariza allaqachon tasdiqlangan.",
+                    "❌ Ariza topilmadi.",
                     show_alert=True
                 )
 
@@ -754,12 +748,19 @@ def admin_payment_callback(call):
 
             user_id = purchase[1]
 
+            try:
+                tariff_name = purchase[7]
+                days = purchase[9]
+            except Exception:
+                tariff_name = "Tarif"
+                days = 0
+
             bot.send_message(
                 user_id,
 
                 "🎉 <b>To‘lov tasdiqlandi!</b>\n\n"
-                f"📦 Tarif: <b>{purchase[7]}</b>\n"
-                f"⏳ Muddat: <b>{purchase[9]} kun</b>\n\n"
+                f"📦 Tarif: <b>{tariff_name}</b>\n"
+                f"⏳ Muddat: <b>{days} kun</b>\n\n"
                 "🔎 Qidiruv funksiyasi ochildi.",
 
                 parse_mode="HTML",
@@ -777,11 +778,15 @@ def admin_payment_callback(call):
                 "✅ To‘lov tasdiqlandi!"
             )
 
+            print(
+                f"PAYMENT APPROVED: {purchase_id}"
+            )
+
             return
 
-        # ==========================================
+        # ==================================================
         # RAD ETISH
-        # ==========================================
+        # ==================================================
 
         if call.data.startswith("reject_"):
 
@@ -797,7 +802,7 @@ def admin_payment_callback(call):
 
                 bot.answer_callback_query(
                     call.id,
-                    "Ariza topilmadi.",
+                    "❌ Ariza topilmadi.",
                     show_alert=True
                 )
 
@@ -830,20 +835,25 @@ def admin_payment_callback(call):
                 "❌ Ariza rad etildi."
             )
 
+            print(
+                f"PAYMENT REJECTED: {purchase_id}"
+            )
+
             return
 
     except Exception as e:
 
-        print("ADMIN PAYMENT ERROR:", e)
+        print(
+            "ADMIN PAYMENT ERROR:",
+            repr(e)
+        )
 
         try:
-
             bot.answer_callback_query(
                 call.id,
                 "❌ Xatolik yuz berdi.",
                 show_alert=True
             )
-
         except Exception:
             pass
 
@@ -857,7 +867,9 @@ def other_messages(message):
 
     try:
 
-        save_user(message.from_user)
+        save_user(
+            message.from_user
+        )
 
         bot.send_message(
             message.chat.id,
@@ -867,11 +879,14 @@ def other_messages(message):
 
     except Exception as e:
 
-        print("MESSAGE ERROR:", e)
+        print(
+            "MESSAGE ERROR:",
+            repr(e)
+        )
 
 
 # ==================================================
-# BOTNI ISHGA TUSHIRISH
+# ISHGA TUSHIRISH
 # ==================================================
 
 if __name__ == "__main__":
