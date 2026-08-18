@@ -17,7 +17,7 @@ def clean_username(value):
 
 
 # =========================================================
-# PROFIL QIDIRISH
+# USER TOPISH
 # =========================================================
 
 async def find_user(client, query):
@@ -27,72 +27,96 @@ async def find_user(client, query):
     if not query:
         return None
 
-    try:
+    # =====================================================
+    # ID ORQALI
+    # =====================================================
 
-        # Telegram ID
-        if query.isdigit():
+    if query.isdigit():
 
-            try:
-                return await client.get_entity(
-                    int(query)
-                )
-            except Exception:
-                pass
-
-        # Username
-        username = clean_username(query)
-
-        if username:
-
-            try:
-                return await client.get_entity(
-                    username
-                )
-            except Exception:
-                pass
-
-        # Public Telegram qidiruvi
         try:
-
-            result = await client(
-                SearchRequest(
-                    q=query,
-                    limit=20
-                )
+            entity = await client.get_entity(
+                int(query)
             )
 
-            for user in result.users:
-
-                if isinstance(user, User):
-
-                    # Username mosligi
-                    if (
-                        user.username
-                        and user.username.lower()
-                        == username.lower()
-                    ):
-                        return user
-
-                    # Ism bo‘yicha moslik
-                    full_name = (
-                        f"{user.first_name or ''} "
-                        f"{user.last_name or ''}"
-                    ).strip().lower()
-
-                    if query.lower() in full_name:
-                        return user
+            if isinstance(entity, User):
+                return entity
 
         except Exception as e:
 
             print(
-                "PUBLIC USER SEARCH ERROR:",
+                "ID SEARCH ERROR:",
                 repr(e)
             )
+
+    # =====================================================
+    # USERNAME ORQALI
+    # =====================================================
+
+    username = clean_username(query)
+
+    if username:
+
+        try:
+
+            entity = await client.get_entity(
+                username
+            )
+
+            if isinstance(entity, User):
+                return entity
+
+        except Exception as e:
+
+            print(
+                "USERNAME SEARCH ERROR:",
+                repr(e)
+            )
+
+    # =====================================================
+    # PUBLIC TELEGRAM SEARCH
+    # =====================================================
+
+    try:
+
+        result = await client(
+            SearchRequest(
+                q=query,
+                limit=50
+            )
+        )
+
+        for user in result.users:
+
+            if not isinstance(user, User):
+                continue
+
+            # Username mosligi
+
+            if user.username:
+
+                if (
+                    user.username.lower()
+                    == username.lower()
+                ):
+                    return user
+
+            # Ism mosligi
+
+            full_name = (
+                f"{user.first_name or ''} "
+                f"{user.last_name or ''}"
+            ).strip().lower()
+
+            if (
+                query.lower()
+                in full_name
+            ):
+                return user
 
     except Exception as e:
 
         print(
-            "FIND USER ERROR:",
+            "PUBLIC USER SEARCH ERROR:",
             repr(e)
         )
 
@@ -111,8 +135,15 @@ def format_user(user):
             "❌ <b>FOYDALANUVCHI TOPILMADI</b>"
         )
 
-    first_name = user.first_name or ""
-    last_name = user.last_name or ""
+    first_name = (
+        user.first_name
+        or ""
+    )
+
+    last_name = (
+        user.last_name
+        or ""
+    )
 
     full_name = (
         f"{first_name} {last_name}"
@@ -126,16 +157,24 @@ def format_user(user):
 
     verified = (
         "✅ Tasdiqlangan"
-        if getattr(user, "verified", False)
+        if getattr(
+            user,
+            "verified",
+            False
+        )
         else "—"
     )
 
     return (
         "👤 <b>PROFIL</b>\n\n"
-        f"📝 Ism: <b>{full_name or 'Noma’lum'}</b>\n"
-        f"👤 Username: <b>{username}</b>\n"
-        f"🆔 ID: <code>{user.id}</code>\n"
-        f"☑️ Status: <b>{verified}</b>"
+        f"📝 Ism: "
+        f"<b>{full_name or 'Noma’lum'}</b>\n"
+        f"👤 Username: "
+        f"<b>{username}</b>\n"
+        f"🆔 ID: "
+        f"<code>{user.id}</code>\n"
+        f"☑️ Status: "
+        f"<b>{verified}</b>"
     )
 
 
@@ -143,7 +182,11 @@ def format_user(user):
 # GLOBAL PUBLIC QIDIRUV
 # =========================================================
 
-async def global_search(client, query, limit=100):
+async def global_search(
+    client,
+    query,
+    limit=100
+):
 
     results = {
         "users": [],
@@ -153,7 +196,9 @@ async def global_search(client, query, limit=100):
         "reactions": []
     }
 
-    query = (query or "").strip()
+    query = (
+        query or ""
+    ).strip()
 
     if not query:
         return results
@@ -179,47 +224,69 @@ async def global_search(client, query, limit=100):
         )
 
         # =================================================
-        # USERS / CHATS
+        # USERS
         # =================================================
 
         for user in response.users:
 
-            if isinstance(user, User):
+            if isinstance(
+                user,
+                User
+            ):
 
-                results["users"].append(user)
+                results["users"].append(
+                    user
+                )
+
+        # =================================================
+        # CHANNELS / GROUPS
+        # =================================================
 
         for chat in response.chats:
 
-            if isinstance(chat, Channel):
+            if isinstance(
+                chat,
+                Channel
+            ):
 
-                # Megagroup = guruh
+                # Supergroup
                 if getattr(
                     chat,
                     "megagroup",
                     False
                 ):
 
-                    results["groups"].append(chat)
+                    results[
+                        "groups"
+                    ].append(chat)
 
+                # Channel
                 else:
 
-                    results["channels"].append(chat)
+                    results[
+                        "channels"
+                    ].append(chat)
 
-            elif isinstance(chat, Chat):
+            elif isinstance(
+                chat,
+                Chat
+            ):
 
-                results["groups"].append(chat)
+                results[
+                    "groups"
+                ].append(chat)
 
         # =================================================
-        # XABARLAR
+        # MESSAGES
         # =================================================
 
         for message in response.messages:
 
             if message is not None:
 
-                results["messages"].append(
-                    message
-                )
+                results[
+                    "messages"
+                ].append(message)
 
     except Exception as e:
 
@@ -229,7 +296,7 @@ async def global_search(client, query, limit=100):
         )
 
     # =====================================================
-    # DUPLIKATLARNI OLIB TASHLASH
+    # DUPLIKATLAR
     # =====================================================
 
     results["users"] = unique_entities(
@@ -244,11 +311,19 @@ async def global_search(client, query, limit=100):
         results["groups"]
     )
 
+    # =====================================================
+    # REAKSIYALAR
+    # =====================================================
+
+    results["reactions"] = search_reactions(
+        results["messages"]
+    )
+
     return results
 
 
 # =========================================================
-# UNIQUE
+# UNIQUE ENTITIES
 # =========================================================
 
 def unique_entities(items):
@@ -272,23 +347,27 @@ def unique_entities(items):
 
         seen.add(item_id)
 
-        result.append(item)
+        result.append(
+            item
+        )
 
     return result
 
 
 # =========================================================
-# KANALLAR FORMAT
+# KANALLAR
 # =========================================================
 
-def format_channels(channels, limit=50):
+def format_channels(
+    channels,
+    limit=50
+):
 
-    text = "📢 <b>KANALLAR</b>\n\n"
+    text = ""
 
     if not channels:
 
         return (
-            text +
             "❌ Public kanal topilmadi."
         )
 
@@ -303,17 +382,11 @@ def format_channels(channels, limit=50):
             None
         )
 
-        if username:
-
-            username_text = (
-                f"@{username}"
-            )
-
-        else:
-
-            username_text = (
-                "Username yo‘q"
-            )
+        username_text = (
+            f"@{username}"
+            if username
+            else "Username yo‘q"
+        )
 
         title = getattr(
             channel,
@@ -331,17 +404,19 @@ def format_channels(channels, limit=50):
 
 
 # =========================================================
-# GURUHLAR FORMAT
+# GURUHLAR
 # =========================================================
 
-def format_groups(groups, limit=50):
+def format_groups(
+    groups,
+    limit=50
+):
 
-    text = "👥 <b>GURUHLAR</b>\n\n"
+    text = ""
 
     if not groups:
 
         return (
-            text +
             "❌ Public guruh topilmadi."
         )
 
@@ -356,17 +431,11 @@ def format_groups(groups, limit=50):
             None
         )
 
-        if username:
-
-            username_text = (
-                f"@{username}"
-            )
-
-        else:
-
-            username_text = (
-                "Username yo‘q"
-            )
+        username_text = (
+            f"@{username}"
+            if username
+            else "Username yo‘q"
+        )
 
         title = getattr(
             group,
@@ -384,17 +453,19 @@ def format_groups(groups, limit=50):
 
 
 # =========================================================
-# XABARLAR FORMAT
+# XABARLAR
 # =========================================================
 
-def format_messages(messages, limit=30):
+def format_messages(
+    messages,
+    limit=30
+):
 
-    text = "💬 <b>XABARLAR</b>\n\n"
+    text = ""
 
     if not messages:
 
         return (
-            text +
             "❌ Public xabar topilmadi."
         )
 
@@ -413,9 +484,15 @@ def format_messages(messages, limit=30):
         )
 
         message_text = (
-            message_text
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
+            str(message_text)
+            .replace(
+                "<",
+                "&lt;"
+            )
+            .replace(
+                ">",
+                "&gt;"
+            )
         )
 
         if len(message_text) > 300:
@@ -436,8 +513,7 @@ def format_messages(messages, limit=30):
 # REAKSIYALAR
 # =========================================================
 
-async def search_reactions(
-    client,
+def search_reactions(
     messages
 ):
 
@@ -456,25 +532,27 @@ async def search_reactions(
             if not reaction_data:
                 continue
 
-            results = getattr(
+            reaction_results = getattr(
                 reaction_data,
                 "results",
                 []
             )
 
-            for reaction in results:
+            for reaction in reaction_results:
 
-                reactions.append({
-                    "message_id":
-                        getattr(
-                            message,
-                            "id",
-                            None
-                        ),
+                reactions.append(
+                    {
+                        "message_id":
+                            getattr(
+                                message,
+                                "id",
+                                None
+                            ),
 
-                    "reaction":
-                        reaction
-                })
+                        "reaction":
+                            reaction
+                    }
+                )
 
         except Exception as e:
 
@@ -487,7 +565,7 @@ async def search_reactions(
 
 
 # =========================================================
-# REAKSIYA FORMAT
+# REAKSIYALAR FORMAT
 # =========================================================
 
 def format_reactions(
@@ -495,12 +573,11 @@ def format_reactions(
     limit=50
 ):
 
-    text = "❤️ <b>REAKSIYALAR</b>\n\n"
+    text = ""
 
     if not reactions:
 
         return (
-            text +
             "❌ Reaksiya ma’lumotlari topilmadi."
         )
 
@@ -521,7 +598,8 @@ def format_reactions(
 
         text += (
             f"{i}. ❤️ "
-            f"Reaksiyalar: <b>{count}</b>\n"
+            f"Reaksiyalar: "
+            f"<b>{count}</b>\n"
         )
 
     return text
@@ -531,50 +609,79 @@ def format_reactions(
 # UMUMIY NATIJA
 # =========================================================
 
-def format_summary(results):
+def format_summary(
+    user,
+    results,
+    reactions=None
+):
 
-    users = len(
+    if reactions is None:
+
+        reactions = results.get(
+            "reactions",
+            []
+        )
+
+    users_count = len(
         results.get(
             "users",
             []
         )
     )
 
-    channels = len(
+    channels_count = len(
         results.get(
             "channels",
             []
         )
     )
 
-    groups = len(
+    groups_count = len(
         results.get(
             "groups",
             []
         )
     )
 
-    messages = len(
+    messages_count = len(
         results.get(
             "messages",
             []
         )
     )
 
-    reactions = len(
-        results.get(
-            "reactions",
-            []
+    reactions_count = len(
+        reactions
+    )
+
+    username = (
+        f"@{user.username}"
+        if getattr(
+            user,
+            "username",
+            None
         )
+        else "Username yo‘q"
     )
 
     return (
-        "📊 <b>UMUMIY NATIJA</b>\n\n"
-        f"👤 Profillar: <b>{users}</b>\n"
-        f"📢 Kanallar: <b>{channels}</b>\n"
-        f"👥 Guruhlar: <b>{groups}</b>\n"
-        f"💬 Xabarlar: <b>{messages}</b>\n"
-        f"❤️ Reaksiyalar: <b>{reactions}</b>\n\n"
-        "🌐 Qidiruv public Telegram "
-        "manbalaridagi natijalarga asoslangan."
+        f"👤 Profil: "
+        f"<b>{username}</b>\n"
+        f"🆔 ID: "
+        f"<code>{user.id}</code>\n\n"
+
+        f"👤 Qo‘shimcha profillar: "
+        f"<b>{users_count}</b>\n"
+        f"📢 Kanallar: "
+        f"<b>{channels_count}</b>\n"
+        f"👥 Guruhlar: "
+        f"<b>{groups_count}</b>\n"
+        f"💬 Xabarlar: "
+        f"<b>{messages_count}</b>\n"
+        f"❤️ Reaksiyalar: "
+        f"<b>{reactions_count}</b>\n\n"
+
+        "🌐 Natijalar Telegram'ning "
+        "public qidiruv imkoniyatlari "
+        "orqali olindi."
     )
