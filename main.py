@@ -32,9 +32,12 @@ from telegram_client import (
 from search import (
     find_user,
     format_user,
-    global_search,
+    search_channels,
     format_channels,
+    search_groups,
     format_groups,
+    search_chats,
+    search_messages,
     format_messages,
     search_reactions,
     format_reactions,
@@ -74,8 +77,47 @@ bot = telebot.TeleBot(
 # HOLATLAR
 # =========================================================
 
-waiting_search = set()
+# Foydalanuvchi qaysi qidiruv turini tanlagan
+search_mode = {}
+
+# To'lov cheki kutilayotgan userlar
 waiting_receipt = {}
+
+
+# =========================================================
+# PROGRESS
+# =========================================================
+
+def progress_bar(percent):
+    percent = max(0, min(100, int(percent)))
+
+    blocks = round(percent / 10)
+
+    return (
+        "█" * blocks +
+        "░" * (10 - blocks)
+    )
+
+
+def progress_text(title, percent, detail=""):
+    return (
+        f"🔎 <b>{title}</b>\n\n"
+        f"[{progress_bar(percent)}] {percent}%\n"
+        f"{detail}"
+    )
+
+
+def safe_edit(chat_id, message_id, text, markup=None):
+    try:
+        bot.edit_message_text(
+            text,
+            chat_id,
+            message_id,
+            parse_mode="HTML",
+            reply_markup=markup
+        )
+    except Exception as e:
+        print("EDIT ERROR:", repr(e))
 
 
 # =========================================================
@@ -88,37 +130,37 @@ def main_menu(user_id=None):
 
     markup.add(
         types.InlineKeyboardButton(
-            "🔎 Foydalanuvchi qidirish",
-            callback_data="search_user"
+            "🔎 Foydalanuvchi",
+            callback_data="search_profile"
         )
     )
 
     markup.add(
         types.InlineKeyboardButton(
             "👥 Guruhlar",
-            callback_data="groups"
+            callback_data="search_groups"
         ),
         types.InlineKeyboardButton(
             "📢 Kanallar",
-            callback_data="channels"
+            callback_data="search_channels"
         )
     )
 
     markup.add(
         types.InlineKeyboardButton(
             "💬 Qayerda yozgan",
-            callback_data="messages"
+            callback_data="search_messages"
         ),
         types.InlineKeyboardButton(
             "❤️ Reaksiyalar",
-            callback_data="reactions"
+            callback_data="search_reactions"
         )
     )
 
     markup.add(
         types.InlineKeyboardButton(
             "📊 To‘liq ma’lumot",
-            callback_data="full_info"
+            callback_data="search_full"
         )
     )
 
@@ -130,7 +172,6 @@ def main_menu(user_id=None):
     )
 
     if user_id == ADMIN_ID:
-
         markup.add(
             types.InlineKeyboardButton(
                 "👑 ADMIN PANEL",
@@ -160,7 +201,6 @@ def tariffs_menu():
         for tariff in tariffs:
 
             try:
-
                 tariff_id = tariff[0]
                 name = tariff[1]
                 price = tariff[2]
@@ -180,7 +220,6 @@ def tariffs_menu():
                 )
 
             except Exception as e:
-
                 print(
                     "TARIFF BUTTON ERROR:",
                     repr(e)
@@ -238,6 +277,24 @@ def admin_menu():
 
 
 # =========================================================
+# SEARCH MODE MENU
+# =========================================================
+
+def search_mode_name(mode):
+
+    names = {
+        "profile": "👤 Foydalanuvchi",
+        "channels": "📢 Kanallar",
+        "groups": "👥 Guruhlar",
+        "messages": "💬 Qayerda yozgan",
+        "reactions": "❤️ Reaksiyalar",
+        "full": "📊 To‘liq ma’lumot",
+    }
+
+    return names.get(mode, "🔎 Qidiruv")
+
+
+# =========================================================
 # START
 # =========================================================
 
@@ -245,16 +302,13 @@ def admin_menu():
 def start(message):
 
     try:
-
         save_user(message.from_user)
 
         bot.send_message(
             message.chat.id,
-
             "👋 <b>Assalomu alaykum!</b>\n\n"
             "🔎 <b>Telegram Search Bot</b>\n\n"
             "Kerakli bo‘limni tanlang:",
-
             reply_markup=main_menu(
                 message.from_user.id
             )
@@ -282,8 +336,15 @@ def cancel(message):
 
     user_id = message.from_user.id
 
-    waiting_search.discard(user_id)
-    waiting_receipt.pop(user_id, None)
+    search_mode.pop(
+        user_id,
+        None
+    )
+
+    waiting_receipt.pop(
+        user_id,
+        None
+    )
 
     bot.send_message(
         message.chat.id,
@@ -293,7 +354,7 @@ def cancel(message):
 
 
 # =========================================================
-# TO‘LOV APPROVE / REJECT
+# TO'LOV APPROVE / REJECT
 # =========================================================
 
 @bot.callback_query_handler(
@@ -335,10 +396,7 @@ def payment_callback(call):
 
         user_id = purchase[1]
 
-        # ==========================
         # APPROVE
-        # ==========================
-
         if call.data.startswith("approve_"):
 
             approve_purchase(
@@ -352,57 +410,37 @@ def payment_callback(call):
 
             bot.send_message(
                 user_id,
-
                 "🎉 <b>TO‘LOV TASDIQLANDI!</b>\n\n"
                 "✅ Tarifingiz aktiv qilindi.\n"
                 "🔎 Endi qidiruvdan foydalanishingiz mumkin.",
-
                 reply_markup=main_menu(user_id)
             )
 
-            try:
-
-                bot.edit_message_reply_markup(
-                    call.message.chat.id,
-                    call.message.message_id,
-                    reply_markup=None
-                )
-
-            except Exception:
-                pass
-
-            return
-
-        # ==========================
         # REJECT
-        # ==========================
+        else:
 
-        reject_purchase(
-            purchase_id
-        )
+            reject_purchase(
+                purchase_id
+            )
 
-        bot.answer_callback_query(
-            call.id,
-            "❌ Rad etildi."
-        )
+            bot.answer_callback_query(
+                call.id,
+                "❌ Rad etildi."
+            )
 
-        bot.send_message(
-            user_id,
-
-            "❌ <b>TO‘LOV RAD ETILDI</b>\n\n"
-            "Admin to‘lovni tasdiqlamadi.",
-
-            reply_markup=main_menu(user_id)
-        )
+            bot.send_message(
+                user_id,
+                "❌ <b>TO‘LOV RAD ETILDI</b>\n\n"
+                "Admin to‘lovni tasdiqlamadi.",
+                reply_markup=main_menu(user_id)
+            )
 
         try:
-
             bot.edit_message_reply_markup(
                 call.message.chat.id,
                 call.message.message_id,
                 reply_markup=None
             )
-
         except Exception:
             pass
 
@@ -424,7 +462,7 @@ def payment_callback(call):
 
 
 # =========================================================
-# UMUMIY CALLBACK
+# CALLBACK
 # =========================================================
 
 @bot.callback_query_handler(
@@ -450,10 +488,8 @@ def callbacks(call):
             bot.edit_message_text(
                 "👑 <b>ADMIN PANEL</b>\n\n"
                 "Kerakli bo‘limni tanlang:",
-
                 call.message.chat.id,
                 call.message.message_id,
-
                 reply_markup=admin_menu()
             )
 
@@ -482,13 +518,11 @@ def callbacks(call):
 
                 bot.send_message(
                     call.message.chat.id,
-
                     "📱 <b>TELEGRAM AKKAUNT</b>\n\n"
                     f"👤 Ism: <b>{me.first_name or ''}</b>\n"
                     f"👤 Username: <b>{username}</b>\n"
                     f"🆔 ID: <code>{me.id}</code>\n\n"
                     "🟢 Holat: <b>ULANGAN</b>",
-
                     reply_markup=admin_menu()
                 )
 
@@ -501,7 +535,6 @@ def callbacks(call):
 
                 bot.send_message(
                     call.message.chat.id,
-
                     "🔴 <b>Akkaunt holatini olishda xato.</b>\n\n"
                     f"<code>{str(e)[:500]}</code>"
                 )
@@ -509,7 +542,7 @@ def callbacks(call):
             return
 
         # =================================================
-        # ADMIN TARIF
+        # ADMIN TARIFF
         # =================================================
 
         if call.data == "admin_tariffs":
@@ -528,7 +561,7 @@ def callbacks(call):
             return
 
         # =================================================
-        # TARIFLAR
+        # TARIFF
         # =================================================
 
         if call.data == "tariffs":
@@ -538,17 +571,15 @@ def callbacks(call):
             bot.edit_message_text(
                 "💳 <b>TARIFLAR</b>\n\n"
                 "Kerakli tarifni tanlang:",
-
                 call.message.chat.id,
                 call.message.message_id,
-
                 reply_markup=tariffs_menu()
             )
 
             return
 
         # =================================================
-        # TARIF TANLASH
+        # TARIFF TANLASH
         # =================================================
 
         if call.data.startswith("tariff_"):
@@ -611,7 +642,7 @@ def callbacks(call):
             return
 
         # =================================================
-        # SOTIB OLISH
+        # BUY
         # =================================================
 
         if call.data.startswith("buy_"):
@@ -684,7 +715,7 @@ def callbacks(call):
             return
 
         # =================================================
-        # CHEK TUGMASI
+        # RECEIPT
         # =================================================
 
         if call.data.startswith("receipt_"):
@@ -712,7 +743,6 @@ def callbacks(call):
 
             bot.send_message(
                 call.message.chat.id,
-
                 "📸 <b>CHEKNI YUBORING</b>\n\n"
                 "To‘lov chekini rasm qilib yuboring."
             )
@@ -720,17 +750,19 @@ def callbacks(call):
             return
 
         # =================================================
-        # QIDIRUV
+        # SEARCH MODE
         # =================================================
 
-        if call.data in (
-            "search_user",
-            "groups",
-            "channels",
-            "messages",
-            "full_info",
-            "reactions"
-        ):
+        modes = {
+            "search_profile": "profile",
+            "search_channels": "channels",
+            "search_groups": "groups",
+            "search_messages": "messages",
+            "search_reactions": "reactions",
+            "search_full": "full",
+        }
+
+        if call.data in modes:
 
             bot.answer_callback_query(call.id)
 
@@ -738,22 +770,22 @@ def callbacks(call):
 
                 bot.send_message(
                     call.message.chat.id,
-
                     "🔒 <b>QIDIRUV YOPIQ</b>\n\n"
                     "Avval tarif sotib oling.",
-
                     reply_markup=tariffs_menu()
                 )
 
                 return
 
-            waiting_search.add(user_id)
+            mode = modes[call.data]
+
+            search_mode[user_id] = mode
 
             bot.send_message(
                 call.message.chat.id,
 
-                "🔎 <b>QIDIRUV</b>\n\n"
-                "Username yoki Telegram ID yuboring.\n\n"
+                f"{search_mode_name(mode)}\n\n"
+                "🔎 Username yoki Telegram ID yuboring.\n\n"
                 "Masalan:\n"
                 "<code>@username</code>\n"
                 "<code>123456789</code>\n\n"
@@ -763,7 +795,7 @@ def callbacks(call):
             return
 
         # =================================================
-        # ORQAGA
+        # BACK
         # =================================================
 
         if call.data == "back_main":
@@ -773,19 +805,20 @@ def callbacks(call):
             bot.edit_message_text(
                 "🏠 <b>ASOSIY MENYU</b>\n\n"
                 "Kerakli bo‘limni tanlang:",
-
                 call.message.chat.id,
                 call.message.message_id,
-
                 reply_markup=main_menu(user_id)
             )
 
             return
 
+        # =================================================
+        # NO ACTION
+        # =================================================
+
         if call.data == "no_action":
 
             bot.answer_callback_query(call.id)
-
             return
 
     except Exception as e:
@@ -796,24 +829,22 @@ def callbacks(call):
         )
 
         try:
-
             bot.answer_callback_query(
                 call.id,
                 "❌ Xatolik yuz berdi.",
                 show_alert=True
             )
-
         except Exception:
             pass
 
 
 # =========================================================
-# QIDIRUV
+# QIDIRUV XABARI
 # =========================================================
 
 @bot.message_handler(
     func=lambda message:
-        message.from_user.id in waiting_search
+        message.from_user.id in search_mode
 )
 def search_message(message):
 
@@ -822,7 +853,10 @@ def search_message(message):
 
     if query.lower() == "/cancel":
 
-        waiting_search.discard(user_id)
+        search_mode.pop(
+            user_id,
+            None
+        )
 
         bot.send_message(
             message.chat.id,
@@ -843,7 +877,10 @@ def search_message(message):
 
     if not has_active_tariff(user_id):
 
-        waiting_search.discard(user_id)
+        search_mode.pop(
+            user_id,
+            None
+        )
 
         bot.send_message(
             message.chat.id,
@@ -853,22 +890,30 @@ def search_message(message):
 
         return
 
+    mode = search_mode.get(
+        user_id
+    )
+
+    if not mode:
+        return
+
     # =====================================================
-    # PROGRESS XABARI
+    # STATUS
     # =====================================================
 
     status = bot.send_message(
         message.chat.id,
-
-        "🔎 <b>QIDIRUV BOSHLANDI</b>\n\n"
-        "▰▱▱▱▱▱▱▱▱▱ 10%\n"
-        "⏳ Profil tekshirilmoqda..."
+        progress_text(
+            search_mode_name(mode),
+            0,
+            "⏳ Qidiruv boshlanmoqda..."
+        )
     )
 
     try:
 
         # =================================================
-        # TELEGRAM CLIENT
+        # TELEGRAM ACCOUNT
         # =================================================
 
         if not telegram_client.is_connected():
@@ -878,8 +923,18 @@ def search_message(message):
             )
 
         # =================================================
-        # 10%
+        # PROFIL
         # =================================================
+
+        safe_edit(
+            message.chat.id,
+            status.message_id,
+            progress_text(
+                search_mode_name(mode),
+                15,
+                "⏳ Foydalanuvchi qidirilmoqda..."
+            )
+        )
 
         user = run_async(
             find_user(
@@ -890,180 +945,289 @@ def search_message(message):
 
         if not user:
 
-            bot.edit_message_text(
-                "🔎 <b>QIDIRUV</b>\n\n"
-                "▰▰▱▱▱▱▱▱▱▱ 20%\n"
-                "❌ Profil topilmadi.",
-
+            safe_edit(
                 message.chat.id,
-                status.message_id
+                status.message_id,
+                "❌ <b>FOYDALANUVCHI TOPILMADI</b>"
             )
 
             return
 
-        bot.edit_message_text(
-            "🔎 <b>QIDIRUV</b>\n\n"
-            "▰▰▱▱▱▱▱▱▱▱ 20%\n"
-            "✅ Profil topildi\n"
-            "⏳ Public manbalar tekshirilmoqda...",
-
-            message.chat.id,
-            status.message_id
-        )
-
-        bot.send_message(
-            message.chat.id,
-            format_user(user)
-        )
-
         # =================================================
-        # 30% GLOBAL SEARCH
+        # PROFILE
         # =================================================
 
-        bot.edit_message_text(
-            "🔎 <b>QIDIRUV</b>\n\n"
-            "▰▰▰▱▱▱▱▱▱▱ 30%\n"
-            "📢 Kanallar tekshirilmoqda...",
+        if mode == "profile":
 
-            message.chat.id,
-            status.message_id
-        )
-
-        results = run_async(
-            global_search(
-                telegram_client,
-                query,
-                limit=100
+            safe_edit(
+                message.chat.id,
+                status.message_id,
+                progress_text(
+                    "👤 Foydalanuvchi",
+                    100,
+                    "✅ Profil topildi."
+                )
             )
-        )
 
-        # =================================================
-        # 50%
-        # =================================================
-
-        bot.edit_message_text(
-            "🔎 <b>QIDIRUV</b>\n\n"
-            "▰▰▰▰▰▱▱▱▱▱ 50%\n"
-            "👥 Guruhlar tekshirilmoqda...",
-
-            message.chat.id,
-            status.message_id
-        )
-
-        bot.send_message(
-            message.chat.id,
-            format_channels(
-                results.get("channels", [])
+            bot.send_message(
+                message.chat.id,
+                format_user(user),
+                reply_markup=main_menu(user_id)
             )
-        )
 
-        bot.send_message(
-            message.chat.id,
-            format_groups(
-                results.get("groups", [])
+            return
+
+        # =================================================
+        # FULL INFO
+        # =================================================
+
+        if mode == "full":
+
+            safe_edit(
+                message.chat.id,
+                status.message_id,
+                progress_text(
+                    "📊 To‘liq ma’lumot",
+                    100,
+                    "✅ Profil ma’lumotlari tayyor."
+                )
             )
-        )
 
-        # =================================================
-        # 70%
-        # =================================================
-
-        bot.edit_message_text(
-            "🔎 <b>QIDIRUV</b>\n\n"
-            "▰▰▰▰▰▰▰▱▱▱ 70%\n"
-            "💬 Xabarlar tekshirilmoqda...",
-
-            message.chat.id,
-            status.message_id
-        )
-
-        bot.send_message(
-            message.chat.id,
-            format_messages(
-                results.get("messages", [])
+            bot.send_message(
+                message.chat.id,
+                format_summary(user),
+                reply_markup=main_menu(user_id)
             )
-        )
+
+            return
 
         # =================================================
-        # 85%
+        # CHANNELS
         # =================================================
 
-        bot.edit_message_text(
-            "🔎 <b>QIDIRUV</b>\n\n"
-            "▰▰▰▰▰▰▰▰▱▱ 85%\n"
-            "❤️ Reaksiyalar tekshirilmoqda...",
+        if mode == "channels":
 
-            message.chat.id,
-            status.message_id
-        )
-
-        # search_reactions oddiy def bo‘lsa,
-        # run_async ishlatilmaydi.
-
-        reactions = search_reactions(
-            results.get("messages", [])
-        )
-
-        results["reactions"] = reactions
-
-        bot.send_message(
-            message.chat.id,
-            format_reactions(
-                reactions
+            safe_edit(
+                message.chat.id,
+                status.message_id,
+                progress_text(
+                    "📢 Kanallar",
+                    35,
+                    "⏳ Kanallar qidirilmoqda..."
+                )
             )
-        )
+
+            channels = run_async(
+                search_channels(
+                    telegram_client,
+                    query,
+                    limit=100
+                )
+            )
+
+            safe_edit(
+                message.chat.id,
+                status.message_id,
+                progress_text(
+                    "📢 Kanallar",
+                    100,
+                    f"✅ Tekshiruv tugadi. Topilgan: {len(channels)}"
+                )
+            )
+
+            bot.send_message(
+                message.chat.id,
+                format_channels(channels),
+                reply_markup=main_menu(user_id)
+            )
+
+            return
 
         # =================================================
-        # 95%
+        # GROUPS
         # =================================================
 
-        bot.edit_message_text(
-            "🔎 <b>QIDIRUV</b>\n\n"
-            "▰▰▰▰▰▰▰▰▰▱ 95%\n"
-            "📊 Yakuniy natija tayyorlanmoqda...",
+        if mode == "groups":
 
-            message.chat.id,
-            status.message_id
-        )
+            safe_edit(
+                message.chat.id,
+                status.message_id,
+                progress_text(
+                    "👥 Guruhlar",
+                    35,
+                    "⏳ Guruhlar qidirilmoqda..."
+                )
+            )
+
+            groups = run_async(
+                search_groups(
+                    telegram_client,
+                    query,
+                    limit=100
+                )
+            )
+
+            safe_edit(
+                message.chat.id,
+                status.message_id,
+                progress_text(
+                    "👥 Guruhlar",
+                    100,
+                    f"✅ Tekshiruv tugadi. Topilgan: {len(groups)}"
+                )
+            )
+
+            bot.send_message(
+                message.chat.id,
+                format_groups(groups),
+                reply_markup=main_menu(user_id)
+            )
+
+            return
 
         # =================================================
-        # SUMMARY
+        # MESSAGES / CHAT
         # =================================================
 
-        summary = format_summary(
-            user,
-            results,
-            reactions
-        )
+        if mode == "messages":
 
-        bot.send_message(
-            message.chat.id,
-            summary
-        )
+            safe_edit(
+                message.chat.id,
+                status.message_id,
+                progress_text(
+                    "💬 Qayerda yozgan",
+                    35,
+                    "⏳ Chatlar qidirilmoqda..."
+                )
+            )
+
+            chats = run_async(
+                search_chats(
+                    telegram_client,
+                    query,
+                    limit=100
+                )
+            )
+
+            safe_edit(
+                message.chat.id,
+                status.message_id,
+                progress_text(
+                    "💬 Qayerda yozgan",
+                    65,
+                    f"📂 Chatlar topildi: {len(chats)}\n"
+                    "⏳ Xabarlar qidirilmoqda..."
+                )
+            )
+
+            messages = run_async(
+                search_messages(
+                    telegram_client,
+                    query,
+                    limit=100
+                )
+            )
+
+            safe_edit(
+                message.chat.id,
+                status.message_id,
+                progress_text(
+                    "💬 Qayerda yozgan",
+                    100,
+                    f"✅ Xabarlar: {len(messages)}"
+                )
+            )
+
+            if chats:
+
+                bot.send_message(
+                    message.chat.id,
+                    format_groups(
+                        [
+                            chat
+                            for chat in chats
+                            if (
+                                getattr(
+                                    chat,
+                                    "megagroup",
+                                    False
+                                )
+                                or isinstance(
+                                    chat,
+                                    __import__(
+                                        "telethon.tl.types",
+                                        fromlist=["Chat"]
+                                    ).Chat
+                                )
+                            )
+                        ]
+                    )
+                )
+
+            bot.send_message(
+                message.chat.id,
+                format_messages(messages),
+                reply_markup=main_menu(user_id)
+            )
+
+            return
 
         # =================================================
-        # 100%
+        # REACTIONS
         # =================================================
 
-        bot.edit_message_text(
-            "🔎 <b>QIDIRUV YAKUNLANDI</b>\n\n"
-            "▰▰▰▰▰▰▰▰▰▰ 100%\n\n"
-            "✅ Profil\n"
-            "✅ Kanallar\n"
-            "✅ Guruhlar\n"
-            "✅ Xabarlar\n"
-            "✅ Reaksiyalar\n\n"
-            "📊 Barcha mavjud public natijalar yig‘ildi.",
+        if mode == "reactions":
 
-            message.chat.id,
-            status.message_id
-        )
+            safe_edit(
+                message.chat.id,
+                status.message_id,
+                progress_text(
+                    "❤️ Reaksiyalar",
+                    35,
+                    "⏳ Xabarlar qidirilmoqda..."
+                )
+            )
 
-        bot.send_message(
-            message.chat.id,
-            "🏠 Asosiy menyu:",
-            reply_markup=main_menu(user_id)
-        )
+            messages = run_async(
+                search_messages(
+                    telegram_client,
+                    query,
+                    limit=100
+                )
+            )
+
+            safe_edit(
+                message.chat.id,
+                status.message_id,
+                progress_text(
+                    "❤️ Reaksiyalar",
+                    70,
+                    f"💬 Xabarlar: {len(messages)}\n"
+                    "⏳ Reaksiyalar tekshirilmoqda..."
+                )
+            )
+
+            reactions = search_reactions(
+                messages
+            )
+
+            safe_edit(
+                message.chat.id,
+                status.message_id,
+                progress_text(
+                    "❤️ Reaksiyalar",
+                    100,
+                    f"✅ Reaksiyalar: {len(reactions)}"
+                )
+            )
+
+            bot.send_message(
+                message.chat.id,
+                format_reactions(reactions),
+                reply_markup=main_menu(user_id)
+            )
+
+            return
 
     except Exception as e:
 
@@ -1072,28 +1236,19 @@ def search_message(message):
             repr(e)
         )
 
-        try:
-
-            bot.edit_message_text(
-                "❌ <b>QIDIRUVDA XATO</b>\n\n"
-                f"<code>{str(e)[:700]}</code>",
-
-                message.chat.id,
-                status.message_id
-            )
-
-        except Exception:
-
-            bot.send_message(
-                message.chat.id,
-
-                "❌ <b>QIDIRUVDA XATO</b>\n\n"
-                f"<code>{str(e)[:700]}</code>"
-            )
+        safe_edit(
+            message.chat.id,
+            status.message_id,
+            "❌ <b>QIDIRUVDA XATO</b>\n\n"
+            f"<code>{str(e)[:700]}</code>"
+        )
 
     finally:
 
-        waiting_search.discard(user_id)
+        search_mode.pop(
+            user_id,
+            None
+        )
 
 
 # =========================================================
@@ -1111,9 +1266,7 @@ def receive_receipt(message):
 
         bot.send_message(
             message.chat.id,
-
             "ℹ️ Hozir chek kutilmayapti.",
-
             reply_markup=main_menu(user_id)
         )
 
@@ -1178,7 +1331,6 @@ def receive_receipt(message):
 
         bot.send_message(
             message.chat.id,
-
             "✅ <b>CHEK ADMINGA YUBORILDI</b>\n\n"
             "⏳ Admin tasdiqlashini kuting."
         )
@@ -1202,7 +1354,7 @@ def receive_receipt(message):
 
 
 # =========================================================
-# BOSHQA XABAR
+# BOSHQA XABARLAR
 # =========================================================
 
 @bot.message_handler(
@@ -1218,9 +1370,7 @@ def other_messages(message):
 
         bot.send_message(
             message.chat.id,
-
             "ℹ️ Menyudagi tugmalardan foydalaning.",
-
             reply_markup=main_menu(
                 message.from_user.id
             )
@@ -1268,7 +1418,6 @@ if __name__ == "__main__":
         )
 
         if me.username:
-
             print(
                 f"👤 Username: @{me.username}"
             )
