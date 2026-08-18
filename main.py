@@ -1259,7 +1259,7 @@ def other_messages(message):
 
 
 # =========================================================
-# PROGRAM START
+# START PROGRAM
 # =========================================================
 
 if __name__ == "__main__":
@@ -1273,3 +1273,46 @@ if __name__ == "__main__":
     print("📱 TELEGRAM AKKAUNT ULANMOQDA...")
     print("================================")
 
+    try:
+        start_client()
+
+        me = get_me()
+
+        print("================================")
+        print("✅ TELEGRAM AKKAUNT ULANDI")
+        print("================================")
+
+        print(
+            f"👤 Ism: {me.first_name or ''}"
+        )
+
+        print(
+            f"🆔 ID: {me.id}"
+        )
+
+        if me.username:
+            print(
+                f"👤 Username: @{me.username}"
+            )
+
+        print("================================")
+
+    except Exception as e:
+
+        print("================================")
+        print("❌ TELEGRAM AKKAUNT ULANMADI")
+        print(
+            f"XATO: {e}"
+        )
+        print("================================")
+
+        raise
+
+    print("🤖 BOT ISHGA TUSHDI")
+    print("================================")
+
+    bot.infinity_polling(
+        skip_pending=True,
+        timeout=60,
+        long_polling_timeout=60
+    )
