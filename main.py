@@ -1317,7 +1317,8 @@ def other_messages(message):
 # =========================================================
 # START PROGRAM
 # =========================================================
- if __name__ == "__main__":
+
+if __name__ == "__main__":
 
     print("================================")
     print("🗄 DATABASE ISHGA TUSHMOQDA")
@@ -1330,12 +1331,10 @@ def other_messages(message):
 
     try:
 
-        # Telegram akkauntni ulash
         telegram_client.loop.run_until_complete(
             telegram_client.start()
         )
 
-        # Akkaunt ma'lumotlarini olish
         me = telegram_client.loop.run_until_complete(
             telegram_client.get_me()
         )
