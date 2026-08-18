@@ -1076,12 +1076,13 @@ def search_message(message):
 
         waiting_search.discard(user_id)
 
-        # -----------------------------------------
+      # -----------------------------------------
         # TUGADI
         # -----------------------------------------
 
         bot.edit_message_text(
-            "✅ <b>GLOBAL QIDIRUV YAKUNLANDI</b>",
+            "✅ <b>GLOBAL QIDIRUV YAKUNLANDI</b>\n\n"
+            "📊 Barcha mavjud natijalar yig‘ildi.",
             message.chat.id,
             status.message_id
         )
@@ -1093,21 +1094,27 @@ def search_message(message):
             repr(e)
         )
 
-        bot.send_message(
-            message.chat.id,
+        try:
+            bot.edit_message_text(
+                "❌ <b>QIDIRUVDA XATO</b>\n\n"
+                f"<code>{str(e)[:700]}</code>",
+                message.chat.id,
+                status.message_id,
+                reply_markup=main_menu(user_id)
+            )
 
-            "❌ <b>QIDIRUVDA XATO</b>\n\n"
-            f"<code>{str(e)[:700]}</code>",
+        except Exception:
 
-            reply_markup=main_menu(user_id)
-        )
+            bot.send_message(
+                message.chat.id,
+                "❌ <b>QIDIRUVDA XATO</b>\n\n"
+                f"<code>{str(e)[:700]}</code>",
+                reply_markup=main_menu(user_id)
+            )
 
     finally:
 
-        waiting_search.discard(
-            user_id
-        )
-
+        waiting_search.discard(user_id)
 
 # =========================================================
 # CHEK QABUL QILISH
