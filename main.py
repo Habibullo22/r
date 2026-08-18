@@ -36,6 +36,7 @@ from search import (
     search_user_chats,
 )
 
+
 # =========================================================
 # TEKSHIRUV
 # =========================================================
@@ -57,16 +58,7 @@ if not API_HASH:
 # BOT
 # =========================================================
 
-bot = telebot.TeleBot(
-    BOT_TOKEN
-)
-
-
-# =========================================================
-# TELEGRAM USER ACCOUNT
-# =========================================================
-
-telegram_client = create_client()
+bot = telebot.TeleBot(BOT_TOKEN)
 
 
 # =========================================================
@@ -76,7 +68,6 @@ telegram_client = create_client()
 waiting_search = set()
 
 waiting_receipt = {}
-
 
 # =========================================================
 # ASOSIY MENU
