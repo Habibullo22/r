@@ -1331,13 +1331,11 @@ if __name__ == "__main__":
 
     try:
 
-        telegram_client.loop.run_until_complete(
-            telegram_client.start()
-        )
+        telegram_client.start()
 
-        me = telegram_client.loop.run_until_complete(
-            telegram_client.get_me()
-        )
+me = telegram_client.loop.run_until_complete(
+    telegram_client.get_me()
+)
 
         print("================================")
         print("✅ TELEGRAM AKKAUNT ULANDI")
