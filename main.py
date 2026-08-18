@@ -1317,48 +1317,32 @@ def other_messages(message):
 # =========================================================
 # START PROGRAM
 # =========================================================
+ if __name__ == "__main__":
 
-if __name__ == "__main__":
-
-    print(
-        "================================"
-    )
-
-    print(
-        "🗄 DATABASE ISHGA TUSHMOQDA"
-    )
-
-    print(
-        "================================"
-    )
+    print("================================")
+    print("🗄 DATABASE ISHGA TUSHMOQDA")
+    print("================================")
 
     init_database()
 
-    print(
-        "📱 TELEGRAM AKKAUNT ULANMOQDA..."
-    )
-
-    print(
-        "================================"
-    )
+    print("📱 TELEGRAM AKKAUNT ULANMOQDA...")
+    print("================================")
 
     try:
 
-        # MUHIM:
-        # Telethon client shu yerda ulanadi.
-        # Keyin qidiruv paytida connect() chaqirilmaydi.
-
-        telegram_client.start()
-
-        me = telegram_client.get_me()
-
-        print(
-            "================================"
+        # Telegram akkauntni ulash
+        telegram_client.loop.run_until_complete(
+            telegram_client.start()
         )
 
-        print(
-            "✅ TELEGRAM AKKAUNT ULANDI"
+        # Akkaunt ma'lumotlarini olish
+        me = telegram_client.loop.run_until_complete(
+            telegram_client.get_me()
         )
+
+        print("================================")
+        print("✅ TELEGRAM AKKAUNT ULANDI")
+        print("================================")
 
         print(
             f"👤 Ism: {me.first_name or ''}"
@@ -1369,42 +1353,25 @@ if __name__ == "__main__":
         )
 
         if me.username:
-
             print(
                 f"👤 Username: @{me.username}"
             )
 
-        print(
-            "================================"
-        )
+        print("================================")
 
     except Exception as e:
 
-        print(
-            "================================"
-        )
-
-        print(
-            "❌ TELEGRAM AKKAUNT ULANMADI"
-        )
-
+        print("================================")
+        print("❌ TELEGRAM AKKAUNT ULANMADI")
         print(
             f"XATO: {e}"
         )
-
-        print(
-            "================================"
-        )
+        print("================================")
 
         raise
 
-    print(
-        "🤖 BOT ISHGA TUSHDI"
-    )
-
-    print(
-        "================================"
-    )
+    print("🤖 BOT ISHGA TUSHDI")
+    print("================================")
 
     bot.infinity_polling(
         skip_pending=True,
