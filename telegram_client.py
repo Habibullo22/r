@@ -6,7 +6,7 @@ from config import API_ID, API_HASH
 
 
 # =========================================================
-# BIRINCHI VA YAGONA EVENT LOOP
+# YAGONA EVENT LOOP
 # =========================================================
 
 LOOP = asyncio.new_event_loop()
@@ -15,11 +15,10 @@ asyncio.set_event_loop(LOOP)
 
 
 # =========================================================
-# TELEGRAM USER ACCOUNT
+# TELEGRAM CLIENT
 # =========================================================
 
 SESSION_NAME = "telegram_account"
-
 
 telegram_client = TelegramClient(
     SESSION_NAME,
@@ -30,13 +29,12 @@ telegram_client = TelegramClient(
 
 
 # =========================================================
-# ASYNC FUNKSIYANI ISHLATISH
+# ASYNC ISHLATISH
 # =========================================================
 
 def run_async(coro):
     """
-    Barcha Telethon coroutine'larini
-    BIR xil event loop orqali ishlatadi.
+    Coroutine'ni doim bitta event loopda ishlatadi.
     """
 
     return LOOP.run_until_complete(coro)
@@ -51,9 +49,11 @@ def start_client():
     if telegram_client.is_connected():
         return True
 
-    run_async(
-        telegram_client.start()
-    )
+    # MUHIM:
+    # start() ni run_async() ichiga qo'ymaymiz.
+    # Telethon login jarayonini o'zi boshqaradi.
+
+    telegram_client.start()
 
     return True
 
