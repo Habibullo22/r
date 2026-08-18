@@ -1318,7 +1318,7 @@ def other_messages(message):
 # START PROGRAM
 # =========================================================
 
-if __name__ == "__main__":
+if name == "main":
 
     print("================================")
     print("🗄 DATABASE ISHGA TUSHMOQDA")
@@ -1330,41 +1330,29 @@ if __name__ == "__main__":
     print("================================")
 
     try:
-
         telegram_client.start()
 
-me = telegram_client.loop.run_until_complete(
-    telegram_client.get_me()
-)
+        me = telegram_client.loop.run_until_complete(
+            telegram_client.get_me()
+        )
 
         print("================================")
         print("✅ TELEGRAM AKKAUNT ULANDI")
         print("================================")
 
-        print(
-            f"👤 Ism: {me.first_name or ''}"
-        )
-
-        print(
-            f"🆔 ID: {me.id}"
-        )
+        print(f"👤 Ism: {me.first_name or ''}")
+        print(f"🆔 ID: {me.id}")
 
         if me.username:
-            print(
-                f"👤 Username: @{me.username}"
-            )
+            print(f"👤 Username: @{me.username}")
 
         print("================================")
 
     except Exception as e:
-
         print("================================")
         print("❌ TELEGRAM AKKAUNT ULANMADI")
-        print(
-            f"XATO: {e}"
-        )
+        print(f"XATO: {e}")
         print("================================")
-
         raise
 
     print("🤖 BOT ISHGA TUSHDI")
