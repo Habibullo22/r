@@ -62,16 +62,6 @@ if not API_HASH:
 # =========================================================
 # BOT
 # =========================================================
-#
-# MUHIM:
-# threaded=False
-#
-# Bu TeleBot handlerlarini boshqa threadlarga
-# chiqarib yubormaydi.
-#
-# Natijada Telethon event loop doim bitta
-# asosiy thread orqali ishlaydi.
-#
 
 bot = telebot.TeleBot(
     BOT_TOKEN,
@@ -85,7 +75,6 @@ bot = telebot.TeleBot(
 # =========================================================
 
 waiting_search = set()
-
 waiting_receipt = {}
 
 
@@ -95,9 +84,7 @@ waiting_receipt = {}
 
 def main_menu(user_id=None):
 
-    markup = types.InlineKeyboardMarkup(
-        row_width=2
-    )
+    markup = types.InlineKeyboardMarkup(row_width=2)
 
     markup.add(
         types.InlineKeyboardButton(
@@ -142,8 +129,6 @@ def main_menu(user_id=None):
         )
     )
 
-    # FAQAT ADMIN
-
     if user_id == ADMIN_ID:
 
         markup.add(
@@ -157,26 +142,17 @@ def main_menu(user_id=None):
 
 
 # =========================================================
-# TARIFLAR MENU
+# TARIF MENU
 # =========================================================
 
 def tariffs_menu():
 
-    markup = types.InlineKeyboardMarkup(
-        row_width=1
-    )
+    markup = types.InlineKeyboardMarkup(row_width=1)
 
     try:
-
         tariffs = get_tariffs()
-
     except Exception as e:
-
-        print(
-            "GET TARIFFS ERROR:",
-            repr(e)
-        )
-
+        print("GET TARIFFS ERROR:", repr(e))
         tariffs = []
 
     if tariffs:
@@ -206,7 +182,7 @@ def tariffs_menu():
             except Exception as e:
 
                 print(
-                    "TARIFF ERROR:",
+                    "TARIFF BUTTON ERROR:",
                     repr(e)
                 )
 
@@ -235,9 +211,7 @@ def tariffs_menu():
 
 def admin_menu():
 
-    markup = types.InlineKeyboardMarkup(
-        row_width=1
-    )
+    markup = types.InlineKeyboardMarkup(row_width=1)
 
     markup.add(
         types.InlineKeyboardButton(
@@ -267,16 +241,12 @@ def admin_menu():
 # START
 # =========================================================
 
-@bot.message_handler(
-    commands=["start"]
-)
+@bot.message_handler(commands=["start"])
 def start(message):
 
     try:
 
-        save_user(
-            message.from_user
-        )
+        save_user(message.from_user)
 
         bot.send_message(
             message.chat.id,
@@ -301,6 +271,25 @@ def start(message):
             message.chat.id,
             "❌ Xatolik yuz berdi."
         )
+
+
+# =========================================================
+# CANCEL
+# =========================================================
+
+@bot.message_handler(commands=["cancel"])
+def cancel(message):
+
+    user_id = message.from_user.id
+
+    waiting_search.discard(user_id)
+    waiting_receipt.pop(user_id, None)
+
+    bot.send_message(
+        message.chat.id,
+        "❌ Amal bekor qilindi.",
+        reply_markup=main_menu(user_id)
+    )
 
 
 # =========================================================
@@ -346,9 +335,9 @@ def payment_callback(call):
 
         user_id = purchase[1]
 
-        # -------------------------------------------------
-        # TASDIQLASH
-        # -------------------------------------------------
+        # ==========================
+        # APPROVE
+        # ==========================
 
         if call.data.startswith("approve_"):
 
@@ -382,15 +371,11 @@ def payment_callback(call):
             except Exception:
                 pass
 
-            print(
-                f"PAYMENT APPROVED: {purchase_id}"
-            )
-
             return
 
-        # -------------------------------------------------
-        # RAD ETISH
-        # -------------------------------------------------
+        # ==========================
+        # REJECT
+        # ==========================
 
         reject_purchase(
             purchase_id
@@ -421,10 +406,6 @@ def payment_callback(call):
         except Exception:
             pass
 
-        print(
-            f"PAYMENT REJECTED: {purchase_id}"
-        )
-
     except Exception as e:
 
         print(
@@ -432,11 +413,14 @@ def payment_callback(call):
             repr(e)
         )
 
-        bot.answer_callback_query(
-            call.id,
-            "❌ Xatolik!",
-            show_alert=True
-        )
+        try:
+            bot.answer_callback_query(
+                call.id,
+                "❌ Xatolik!",
+                show_alert=True
+            )
+        except Exception:
+            pass
 
 
 # =========================================================
@@ -797,15 +781,10 @@ def callbacks(call):
             )
 
             return
-        # =================================================
-        # NO ACTION
-        # =================================================
 
         if call.data == "no_action":
 
-            bot.answer_callback_query(
-                call.id
-            )
+            bot.answer_callback_query(call.id)
 
             return
 
@@ -827,8 +806,9 @@ def callbacks(call):
         except Exception:
             pass
 
+
 # =========================================================
-# YANGI GLOBAL QIDIRUV
+# QIDIRUV
 # =========================================================
 
 @bot.message_handler(
@@ -839,10 +819,6 @@ def search_message(message):
 
     user_id = message.from_user.id
     query = (message.text or "").strip()
-
-    # =====================================================
-    # CANCEL
-    # =====================================================
 
     if query.lower() == "/cancel":
 
@@ -856,10 +832,6 @@ def search_message(message):
 
         return
 
-    # =====================================================
-    # BO'SH
-    # =====================================================
-
     if not query:
 
         bot.send_message(
@@ -868,10 +840,6 @@ def search_message(message):
         )
 
         return
-
-    # =====================================================
-    # TARIF
-    # =====================================================
 
     if not has_active_tariff(user_id):
 
@@ -886,25 +854,21 @@ def search_message(message):
         return
 
     # =====================================================
-    # QIDIRUV BOSHLANDI
+    # PROGRESS XABARI
     # =====================================================
 
     status = bot.send_message(
         message.chat.id,
 
         "🔎 <b>QIDIRUV BOSHLANDI</b>\n\n"
-        "⏳ Public Telegram manbalari tekshirilmoqda...\n\n"
-        "1️⃣ Profil\n"
-        "2️⃣ Kanallar\n"
-        "3️⃣ Guruhlar\n"
-        "4️⃣ Xabarlar\n"
-        "5️⃣ Reaksiyalar"
+        "▰▱▱▱▱▱▱▱▱▱ 10%\n"
+        "⏳ Profil tekshirilmoqda..."
     )
 
     try:
 
         # =================================================
-        # TELEGRAM ACCOUNT
+        # TELEGRAM CLIENT
         # =================================================
 
         if not telegram_client.is_connected():
@@ -914,15 +878,8 @@ def search_message(message):
             )
 
         # =================================================
-        # 1. PROFIL
+        # 10%
         # =================================================
-
-        bot.edit_message_text(
-            "🔎 <b>QIDIRUV</b>\n\n"
-            "1️⃣ 👤 Profil tekshirilmoqda...",
-            message.chat.id,
-            status.message_id
-        )
 
         user = run_async(
             find_user(
@@ -931,37 +888,46 @@ def search_message(message):
             )
         )
 
-        if user:
+        if not user:
 
-            bot.send_message(
+            bot.edit_message_text(
+                "🔎 <b>QIDIRUV</b>\n\n"
+                "▰▰▱▱▱▱▱▱▱▱ 20%\n"
+                "❌ Profil topilmadi.",
+
                 message.chat.id,
-                format_user(user)
+                status.message_id
             )
 
-        else:
-
-            bot.send_message(
-                message.chat.id,
-                "❌ Profil topilmadi."
-            )
-
-        # =================================================
-        # 2. GLOBAL SEARCH
-        # =================================================
+            return
 
         bot.edit_message_text(
             "🔎 <b>QIDIRUV</b>\n\n"
-            "✅ Profil tekshirildi\n"
-            "2️⃣ 📢 Kanallar tekshirilmoqda...\n"
-            "3️⃣ 👥 Guruhlar tekshirilmoqda...\n"
-            "4️⃣ 💬 Xabarlar tekshirilmoqda...",
+            "▰▰▱▱▱▱▱▱▱▱ 20%\n"
+            "✅ Profil topildi\n"
+            "⏳ Public manbalar tekshirilmoqda...",
+
             message.chat.id,
             status.message_id
         )
 
-        # MUHIM:
-        # global_search ga USER EMAS,
-        # query string yuboriladi.
+        bot.send_message(
+            message.chat.id,
+            format_user(user)
+        )
+
+        # =================================================
+        # 30% GLOBAL SEARCH
+        # =================================================
+
+        bot.edit_message_text(
+            "🔎 <b>QIDIRUV</b>\n\n"
+            "▰▰▰▱▱▱▱▱▱▱ 30%\n"
+            "📢 Kanallar tekshirilmoqda...",
+
+            message.chat.id,
+            status.message_id
+        )
 
         results = run_async(
             global_search(
@@ -972,32 +938,17 @@ def search_message(message):
         )
 
         # =================================================
-        # 3. REAKSIYALAR
+        # 50%
         # =================================================
 
         bot.edit_message_text(
             "🔎 <b>QIDIRUV</b>\n\n"
-            "✅ Profil\n"
-            "✅ Kanallar\n"
-            "✅ Guruhlar\n"
-            "✅ Xabarlar\n"
-            "5️⃣ ❤️ Reaksiyalar tekshirilmoqda...",
+            "▰▰▰▰▰▱▱▱▱▱ 50%\n"
+            "👥 Guruhlar tekshirilmoqda...",
+
             message.chat.id,
             status.message_id
         )
-
-        reactions = run_async(
-            search_reactions(
-                telegram_client,
-                results.get("messages", [])
-            )
-        )
-
-        results["reactions"] = reactions
-
-        # =================================================
-        # KANALLAR
-        # =================================================
 
         bot.send_message(
             message.chat.id,
@@ -1005,10 +956,6 @@ def search_message(message):
                 results.get("channels", [])
             )
         )
-
-        # =================================================
-        # GURUHLAR
-        # =================================================
 
         bot.send_message(
             message.chat.id,
@@ -1018,8 +965,17 @@ def search_message(message):
         )
 
         # =================================================
-        # XABARLAR
+        # 70%
         # =================================================
+
+        bot.edit_message_text(
+            "🔎 <b>QIDIRUV</b>\n\n"
+            "▰▰▰▰▰▰▰▱▱▱ 70%\n"
+            "💬 Xabarlar tekshirilmoqda...",
+
+            message.chat.id,
+            status.message_id
+        )
 
         bot.send_message(
             message.chat.id,
@@ -1029,31 +985,84 @@ def search_message(message):
         )
 
         # =================================================
-        # REAKSIYALAR
+        # 85%
         # =================================================
+
+        bot.edit_message_text(
+            "🔎 <b>QIDIRUV</b>\n\n"
+            "▰▰▰▰▰▰▰▰▱▱ 85%\n"
+            "❤️ Reaksiyalar tekshirilmoqda...",
+
+            message.chat.id,
+            status.message_id
+        )
+
+        # search_reactions oddiy def bo‘lsa,
+        # run_async ishlatilmaydi.
+
+        reactions = search_reactions(
+            results.get("messages", [])
+        )
+
+        results["reactions"] = reactions
 
         bot.send_message(
             message.chat.id,
             format_reactions(
-                results.get("reactions", [])
+                reactions
             )
         )
 
         # =================================================
-        # UMUMIY NATIJA
+        # 95%
         # =================================================
+
+        bot.edit_message_text(
+            "🔎 <b>QIDIRUV</b>\n\n"
+            "▰▰▰▰▰▰▰▰▰▱ 95%\n"
+            "📊 Yakuniy natija tayyorlanmoqda...",
+
+            message.chat.id,
+            status.message_id
+        )
+
+        # =================================================
+        # SUMMARY
+        # =================================================
+
+        summary = format_summary(
+            user,
+            results,
+            reactions
+        )
 
         bot.send_message(
             message.chat.id,
-            format_summary(results),
-            reply_markup=main_menu(user_id)
+            summary
         )
 
+        # =================================================
+        # 100%
+        # =================================================
+
         bot.edit_message_text(
-            "✅ <b>QIDIRUV YAKUNLANDI</b>\n\n"
-            "🌐 Public Telegram manbalari tekshirildi.",
+            "🔎 <b>QIDIRUV YAKUNLANDI</b>\n\n"
+            "▰▰▰▰▰▰▰▰▰▰ 100%\n\n"
+            "✅ Profil\n"
+            "✅ Kanallar\n"
+            "✅ Guruhlar\n"
+            "✅ Xabarlar\n"
+            "✅ Reaksiyalar\n\n"
+            "📊 Barcha mavjud public natijalar yig‘ildi.",
+
             message.chat.id,
             status.message_id
+        )
+
+        bot.send_message(
+            message.chat.id,
+            "🏠 Asosiy menyu:",
+            reply_markup=main_menu(user_id)
         )
 
     except Exception as e:
@@ -1063,58 +1072,29 @@ def search_message(message):
             repr(e)
         )
 
-        bot.send_message(
-            message.chat.id,
-
-            "❌ <b>QIDIRUVDA XATO</b>\n\n"
-            f"<code>{str(e)[:700]}</code>",
-
-            reply_markup=main_menu(user_id)
-        )
-
-    finally:
-
-        waiting_search.discard(user_id)
-
-      # -----------------------------------------
-        # TUGADI
-        # -----------------------------------------
-
-        bot.edit_message_text(
-            "✅ <b>GLOBAL QIDIRUV YAKUNLANDI</b>\n\n"
-            "📊 Barcha mavjud natijalar yig‘ildi.",
-            message.chat.id,
-            status.message_id
-        )
-
-    except Exception as e:
-
-        print(
-            "GLOBAL SEARCH ERROR:",
-            repr(e)
-        )
-
         try:
+
             bot.edit_message_text(
                 "❌ <b>QIDIRUVDA XATO</b>\n\n"
                 f"<code>{str(e)[:700]}</code>",
+
                 message.chat.id,
-                status.message_id,
-                reply_markup=main_menu(user_id)
+                status.message_id
             )
 
         except Exception:
 
             bot.send_message(
                 message.chat.id,
+
                 "❌ <b>QIDIRUVDA XATO</b>\n\n"
-                f"<code>{str(e)[:700]}</code>",
-                reply_markup=main_menu(user_id)
+                f"<code>{str(e)[:700]}</code>"
             )
 
     finally:
 
         waiting_search.discard(user_id)
+
 
 # =========================================================
 # CHEK QABUL QILISH
@@ -1139,9 +1119,7 @@ def receive_receipt(message):
 
         return
 
-    purchase_id = waiting_receipt[
-        user_id
-    ]
+    purchase_id = waiting_receipt[user_id]
 
     purchase = get_purchase(
         purchase_id
@@ -1189,27 +1167,38 @@ def receive_receipt(message):
         )
     )
 
-    bot.send_photo(
-        ADMIN_ID,
+    try:
 
-        message.photo[-1].file_id,
+        bot.send_photo(
+            ADMIN_ID,
+            message.photo[-1].file_id,
+            caption=caption,
+            reply_markup=markup
+        )
 
-        caption=caption,
+        bot.send_message(
+            message.chat.id,
 
-        reply_markup=markup
-    )
+            "✅ <b>CHEK ADMINGA YUBORILDI</b>\n\n"
+            "⏳ Admin tasdiqlashini kuting."
+        )
 
-    bot.send_message(
-        message.chat.id,
+        waiting_receipt.pop(
+            user_id,
+            None
+        )
 
-        "✅ <b>CHEK ADMINGA YUBORILDI</b>\n\n"
-        "⏳ Admin tasdiqlashini kuting."
-    )
+    except Exception as e:
 
-    waiting_receipt.pop(
-        user_id,
-        None
-    )
+        print(
+            "RECEIPT ERROR:",
+            repr(e)
+        )
+
+        bot.send_message(
+            message.chat.id,
+            "❌ Chekni yuborishda xatolik."
+        )
 
 
 # =========================================================
@@ -1261,6 +1250,7 @@ if __name__ == "__main__":
     print("================================")
 
     try:
+
         start_client()
 
         me = get_me()
@@ -1278,6 +1268,7 @@ if __name__ == "__main__":
         )
 
         if me.username:
+
             print(
                 f"👤 Username: @{me.username}"
             )
