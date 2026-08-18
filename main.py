@@ -32,8 +32,13 @@ from telegram_client import (
 from search import (
     find_user,
     format_user,
-    search_user_messages,
-    search_user_chats,
+    global_search,
+    format_channels,
+    format_groups,
+    format_messages,
+    search_reactions,
+    format_reactions,
+    format_summary,
 )
 
 
@@ -792,14 +797,15 @@ def callbacks(call):
             )
 
             return
-
         # =================================================
         # NO ACTION
         # =================================================
 
         if call.data == "no_action":
 
-            bot.answer_callback_query(call.id)
+            bot.answer_callback_query(
+                call.id
+            )
 
             return
 
@@ -821,9 +827,8 @@ def callbacks(call):
         except Exception:
             pass
 
-
 # =========================================================
-# QIDIRUV XABARI
+# YANGI GLOBAL QIDIRUV
 # =========================================================
 
 @bot.message_handler(
@@ -838,29 +843,21 @@ def search_message(message):
         message.text or ""
     ).strip()
 
-    # -----------------------------------------------------
-    # CANCEL
-    # -----------------------------------------------------
+    # ---------------------------------------------
+    # BEKOR QILISH
+    # ---------------------------------------------
 
     if query.lower() == "/cancel":
 
-        waiting_search.discard(
-            user_id
-        )
+        waiting_search.discard(user_id)
 
         bot.send_message(
             message.chat.id,
-
             "❌ Qidiruv bekor qilindi.",
-
             reply_markup=main_menu(user_id)
         )
 
         return
-
-    # -----------------------------------------------------
-    # BO‘SH
-    # -----------------------------------------------------
 
     if not query:
 
@@ -871,42 +868,45 @@ def search_message(message):
 
         return
 
-    # -----------------------------------------------------
-    # TARIF
-    # -----------------------------------------------------
+    # ---------------------------------------------
+    # TARIF TEKSHIRISH
+    # ---------------------------------------------
 
     if not has_active_tariff(user_id):
 
-        waiting_search.discard(
-            user_id
-        )
+        waiting_search.discard(user_id)
 
         bot.send_message(
             message.chat.id,
-
             "🔒 Aktiv tarif kerak.",
-
             reply_markup=tariffs_menu()
         )
 
         return
 
-    # -----------------------------------------------------
+    # ---------------------------------------------
     # QIDIRUV BOSHLANDI
-    # -----------------------------------------------------
+    # ---------------------------------------------
 
-    bot.send_message(
+    status = bot.send_message(
         message.chat.id,
 
-        "🔎 <b>QIDIRILMOQDA...</b>\n\n"
-        "⏳ Ma’lumotlar tekshirilmoqda."
+        "🔎 <b>GLOBAL QIDIRUV</b>\n\n"
+        "⏳ Qidiruv boshlanmoqda...\n"
+        "━━━━━━━━━━━━━━━━\n"
+        "👤 Profil\n"
+        "📢 Kanallar\n"
+        "👥 Guruhlar\n"
+        "💬 Xabarlar\n"
+        "❤️ Reaksiyalar\n"
+        "━━━━━━━━━━━━━━━━"
     )
 
     try:
 
-        # -------------------------------------------------
-        # TELEGRAM ACCOUNT
-        # -------------------------------------------------
+        # -----------------------------------------
+        # TELEGRAM AKKAUNT
+        # -----------------------------------------
 
         if not telegram_client.is_connected():
 
@@ -914,9 +914,16 @@ def search_message(message):
                 "Telegram akkaunt ulanmagan."
             )
 
-        # -------------------------------------------------
-        # USER TOPISH
-        # -------------------------------------------------
+        # -----------------------------------------
+        # USER
+        # -----------------------------------------
+
+        bot.edit_message_text(
+            "🔎 <b>GLOBAL QIDIRUV</b>\n\n"
+            "👤 Foydalanuvchi topilmoqda...",
+            message.chat.id,
+            status.message_id
+        )
 
         user = run_async(
             find_user(
@@ -927,189 +934,140 @@ def search_message(message):
 
         if not user:
 
-            bot.send_message(
+            bot.edit_message_text(
+                "❌ <b>FOYDALANUVCHI TOPILMADI</b>\n\n"
+                "Username yoki Telegram ID noto‘g‘ri.",
                 message.chat.id,
-
-                "❌ <b>FOYDALANUVCHI TOPILMADI</b>"
+                status.message_id
             )
 
+            waiting_search.discard(user_id)
             return
 
-        # -------------------------------------------------
+        # -----------------------------------------
         # PROFIL
-        # -------------------------------------------------
+        # -----------------------------------------
 
         bot.send_message(
             message.chat.id,
-
-            format_user(
-                user
-            )
+            format_user(user)
         )
 
-        # -------------------------------------------------
-        # CHATLAR
-        # -------------------------------------------------
+        # -----------------------------------------
+        # GLOBAL SEARCH
+        # -----------------------------------------
 
-        bot.send_message(
+        bot.edit_message_text(
+            "🔎 <b>GLOBAL QIDIRUV</b>\n\n"
+            "📡 Telegram manbalari tekshirilmoqda...\n\n"
+            "⏳ Biroz kuting...",
             message.chat.id,
-            "🔍 Guruh va kanallar tekshirilmoqda..."
+            status.message_id
         )
 
-        chats = run_async(
-            search_user_chats(
+        result = run_async(
+            global_search(
                 telegram_client,
                 user
             )
         )
 
-        # -------------------------------------------------
-        # XABARLAR
-        # -------------------------------------------------
-
-        bot.send_message(
-            message.chat.id,
-            "💬 Xabarlar tekshirilmoqda..."
-        )
-
-        messages = run_async(
-            search_user_messages(
-                telegram_client,
-                user
-            )
-        )
-
-        # -------------------------------------------------
-        # GURUHLAR
-        # -------------------------------------------------
-
-        groups = [
-            item
-            for item in chats
-            if item.get("type") == "group"
-        ]
-
-        text = "👥 <b>GURUHLAR</b>\n\n"
-
-        if groups:
-
-            for i, item in enumerate(
-                groups[:50],
-                1
-            ):
-
-                text += (
-                    f"{i}. "
-                    f"{item.get('title', 'Noma’lum')}\n"
-                )
-
-        else:
-
-            text += (
-                "Mavjud ma’lumot topilmadi."
-            )
-
-        bot.send_message(
-            message.chat.id,
-            text
-        )
-
-        # -------------------------------------------------
+        # -----------------------------------------
         # KANALLAR
-        # -------------------------------------------------
+        # -----------------------------------------
 
-        channels = [
-            item
-            for item in chats
-            if item.get("type") == "channel"
-        ]
-
-        text = "📢 <b>KANALLAR</b>\n\n"
-
-        if channels:
-
-            for i, item in enumerate(
-                channels[:50],
-                1
-            ):
-
-                text += (
-                    f"{i}. "
-                    f"{item.get('title', 'Noma’lum')}\n"
-                )
-
-        else:
-
-            text += (
-                "Mavjud ma’lumot topilmadi."
-            )
-
-        bot.send_message(
-            message.chat.id,
-            text
+        channels = result.get(
+            "channels",
+            []
         )
 
-        # -------------------------------------------------
-        # QAYERDA YOZGAN
-        # -------------------------------------------------
-
-        text = "💬 <b>QAYERDA YOZGAN</b>\n\n"
-
-        total = 0
-
-        if messages:
-
-            for item in messages[:50]:
-
-                count = len(
-                    item.get(
-                        "messages",
-                        []
-                    )
-                )
-
-                total += count
-
-                text += (
-                    f"📍 <b>"
-                    f"{item.get('title', 'Noma’lum')}"
-                    f"</b>\n"
-                    f"💬 Xabarlar: <b>{count}</b>\n\n"
-                )
-
-            text += (
-                f"📊 Jami: <b>{total}</b>"
-            )
-
-        else:
-
-            text += (
-                "Mavjud xabar topilmadi."
-            )
-
         bot.send_message(
             message.chat.id,
-            text
+
+            "📢 <b>KANALLAR</b>\n\n" +
+            format_channels(channels)
         )
 
-        # -------------------------------------------------
-        # YAKUN
-        # -------------------------------------------------
+        # -----------------------------------------
+        # GURUHLAR
+        # -----------------------------------------
+
+        groups = result.get(
+            "groups",
+            []
+        )
 
         bot.send_message(
             message.chat.id,
 
-            "✅ <b>QIDIRUV YAKUNLANDI</b>\n\n"
-            "Ma’lumotlar Telegram API orqali "
-            "akkaunt ko‘ra oladigan manbalardan olindi.",
+            "👥 <b>GURUHLAR</b>\n\n" +
+            format_groups(groups)
+        )
+
+        # -----------------------------------------
+        # XABARLAR
+        # -----------------------------------------
+
+        messages = result.get(
+            "messages",
+            []
+        )
+
+        bot.send_message(
+            message.chat.id,
+
+            "💬 <b>XABARLAR</b>\n\n" +
+            format_messages(messages)
+        )
+
+        # -----------------------------------------
+        # REAKSIYALAR
+        # -----------------------------------------
+
+        reactions = search_reactions(
+            messages
+        )
+
+        bot.send_message(
+            message.chat.id,
+
+            "❤️ <b>REAKSIYALAR</b>\n\n" +
+            format_reactions(reactions)
+        )
+
+        # -----------------------------------------
+        # UMUMIY NATIJA
+        # -----------------------------------------
+
+        summary = format_summary(
+            user,
+            result,
+            reactions
+        )
+
+        bot.send_message(
+            message.chat.id,
+
+            "📊 <b>UMUMIY NATIJA</b>\n\n" +
+            summary,
 
             reply_markup=main_menu(user_id)
+        )
+
+        # -----------------------------------------
+        # TUGADI
+        # -----------------------------------------
+
+        bot.edit_message_text(
+            "✅ <b>GLOBAL QIDIRUV YAKUNLANDI</b>",
+            message.chat.id,
+            status.message_id
         )
 
     except Exception as e:
 
         print(
-            "SEARCH ERROR:",
+            "GLOBAL SEARCH ERROR:",
             repr(e)
         )
 
