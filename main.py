@@ -1273,44 +1273,39 @@ if __name__ == "__main__":
     print("📱 TELEGRAM AKKAUNT ULANMOQDA...")
     print("================================")
 
-    try:
+ try:
 
-        # FAQAT BIR MARTA ULANADI
-        start_client()
+    start_client()
 
-        # O‘SHA LOOP ORQALI GET_ME
-        me = get_me()
+    me = get_me()
 
-        print("================================")
-        print("✅ TELEGRAM AKKAUNT ULANDI")
-        print("================================")
+    print("================================")
+    print("✅ TELEGRAM AKKAUNT ULANDI")
+    print("================================")
 
+    print(
+        f"👤 Ism: {me.first_name or ''}"
+    )
+
+    print(
+        f"🆔 ID: {me.id}"
+    )
+
+    if me.username:
         print(
-            f"👤 Ism: {me.first_name or ''}"
+            f"👤 Username: @{me.username}"
         )
 
-        print(
-            f"🆔 ID: {me.id}"
-        )
+    print("================================")
 
-        if me.username:
+except Exception as e:
 
-            print(
-                f"👤 Username: @{me.username}"
-            )
+    print("================================")
+    print("❌ TELEGRAM AKKAUNT ULANMADI")
+    print(f"XATO: {e}")
+    print("================================")
 
-        print("================================")
-
-    except Exception as e:
-
-        print("================================")
-        print("❌ TELEGRAM AKKAUNT ULANMADI")
-        print(
-            f"XATO: {e}"
-        )
-        print("================================")
-
-        raise
+    raise
 
     print("🤖 BOT ISHGA TUSHDI")
     print("================================")
