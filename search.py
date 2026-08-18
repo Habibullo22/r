@@ -209,18 +209,16 @@ async def search_channels(client, query, limit=100):
     try:
 
         # Telegram global public qidiruvi
-        response = await client(
-            SearchGlobalRequest(
-                q=query,
-                filter=None,
-                min_date=None,
-                max_date=None,
-                offset_id=0,
-                offset_rate=0,
-                max_id=0,
-                min_id=0,
-                limit=limit
-            )
+ response = await client(
+    SearchGlobalRequest(
+        q=query,
+        filter=None,
+        min_date=None,
+        max_date=None,
+        offset_id=0,
+        offset_rate=0,
+        limit=limit
+    )
         )
 
         for chat in response.chats:
