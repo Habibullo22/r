@@ -29,13 +29,19 @@ telegram_client = TelegramClient(
 
 
 # =========================================================
-# ASYNC ISHLATISH
+# ASYNC RUNNER
 # =========================================================
 
 def run_async(coro):
     """
-    Coroutine'ni doim bitta event loopda ishlatadi.
+    Barcha Telethon coroutine'larini
+    faqat bitta event loop orqali ishlatadi.
     """
+
+    if LOOP.is_closed():
+        raise RuntimeError(
+            "Telegram event loop yopilgan."
+        )
 
     return LOOP.run_until_complete(coro)
 
@@ -44,26 +50,73 @@ def run_async(coro):
 # TELEGRAM AKKAUNTNI ULASH
 # =========================================================
 
-def start_client():
+async def _start_client():
 
-    if telegram_client.is_connected():
-        return True
+    if not telegram_client.is_connected():
 
-    # MUHIM:
-    # start() ni run_async() ichiga qo'ymaymiz.
-    # Telethon login jarayonini o'zi boshqaradi.
-
-    telegram_client.start()
+        await telegram_client.start()
 
     return True
+
+
+def start_client():
+    """
+    Telegram akkauntni yagona event loop orqali ulaydi.
+    """
+
+    return run_async(
+        _start_client()
+    )
 
 
 # =========================================================
 # AKKAUNT MA'LUMOTI
 # =========================================================
 
+async def _get_me():
+
+    return await telegram_client.get_me()
+
+
 def get_me():
 
     return run_async(
-        telegram_client.get_me()
+        _get_me()
     )
+
+
+# =========================================================
+# ULANISHNI TEKSHIRISH
+# =========================================================
+
+def is_connected():
+
+    return telegram_client.is_connected()
+
+
+# =========================================================
+# CLIENTNI TO'XTATISH
+# =========================================================
+
+async def _disconnect_client():
+
+    if telegram_client.is_connected():
+
+        await telegram_client.disconnect()
+
+
+def disconnect_client():
+
+    if not LOOP.is_closed():
+
+        try:
+            run_async(
+                _disconnect_client()
+            )
+
+        except Exception as e:
+
+            print(
+                "DISCONNECT ERROR:",
+                repr(e)
+            )
