@@ -1,6 +1,8 @@
 import asyncio
+
 from telegram_client import create_client
 from search import find_user, format_user
+
 import telebot
 from telebot import types
 
@@ -23,11 +25,14 @@ from database import (
     has_active_tariff,
 )
 
-
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN topilmadi!")
 
+
 bot = telebot.TeleBot(BOT_TOKEN)
+
+# Telegram akkaunt klienti
+telegram_client = create_client()
 
 
 # =========================
