@@ -1,8 +1,3 @@
-import asyncio
-
-from telegram_client import create_client
-from search import find_user, format_user
-
 import telebot
 from telebot import types
 
@@ -10,7 +5,7 @@ from config import (
     BOT_TOKEN,
     ADMIN_ID,
     CARD_NUMBER,
-    CARD_OWNER
+    CARD_OWNER,
 )
 
 from database import (
@@ -25,28 +20,47 @@ from database import (
     has_active_tariff,
 )
 
-if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN topilmadi!")
+from telegram_client import create_client
 
+
+# ==================================================
+# BOTNI TEKSHIRISH
+# ==================================================
+
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN .env faylida topilmadi!")
+
+if not ADMIN_ID:
+    raise RuntimeError("ADMIN_ID .env faylida topilmadi!")
+
+
+# ==================================================
+# BOT
+# ==================================================
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Telegram akkaunt klienti
+
+# ==================================================
+# TELEGRAM USER ACCOUNT CLIENT
+# ==================================================
+
 telegram_client = create_client()
 
 
-# =========================
-# VAQTINCHA CHEK SAQLASH
-# =========================
+# ==================================================
+# VAQTINCHA CHEK KUTISH
+# ==================================================
 
 waiting_receipt = {}
 
 
-# =========================
+# ==================================================
 # ASOSIY MENYU
-# =========================
+# ==================================================
 
 def main_menu():
+
     markup = types.InlineKeyboardMarkup(row_width=2)
 
     markup.add(
@@ -95,27 +109,41 @@ def main_menu():
     return markup
 
 
-# =========================
-# TARIFLAR
-# =========================
+# ==================================================
+# TARIFLAR MENYUSI
+# ==================================================
 
 def tariffs_menu():
+
     markup = types.InlineKeyboardMarkup(row_width=1)
 
     tariffs = get_tariffs()
 
-    for tariff in tariffs:
-        tariff_id, name, price, days = tariff
+    if not tariffs:
 
-        text = (
-            f"{name} — "
-            f"{price:,} so‘m / "
-            f"{days} kun"
+        markup.add(
+            types.InlineKeyboardButton(
+                "⬅️ Orqaga",
+                callback_data="back_main"
+            )
+        )
+
+        return markup
+
+    for tariff in tariffs:
+
+        tariff_id = tariff[0]
+        name = tariff[1]
+        price = tariff[2]
+        days = tariff[3]
+
+        button_text = (
+            f"{name} — {price:,} so‘m / {days} kun"
         ).replace(",", " ")
 
         markup.add(
             types.InlineKeyboardButton(
-                text,
+                button_text,
                 callback_data=f"tariff_{tariff_id}"
             )
         )
@@ -130,28 +158,41 @@ def tariffs_menu():
     return markup
 
 
-# =========================
+# ==================================================
 # START
-# =========================
+# ==================================================
 
 @bot.message_handler(commands=["start"])
 def start(message):
 
-    save_user(message.from_user)
+    try:
 
-    bot.send_message(
-        message.chat.id,
-        "👋 <b>Assalomu alaykum!</b>\n\n"
-        "🔎 Telegram Search Bot'ga xush kelibsiz!\n\n"
-        "Kerakli bo‘limni tanlang:",
-        parse_mode="HTML",
-        reply_markup=main_menu()
-    )
+        save_user(message.from_user)
+
+        bot.send_message(
+            message.chat.id,
+
+            "👋 <b>Assalomu alaykum!</b>\n\n"
+            "🔎 <b>Telegram Search Bot</b>ga xush kelibsiz!\n\n"
+            "Kerakli bo‘limni tanlang:",
+
+            parse_mode="HTML",
+            reply_markup=main_menu()
+        )
+
+    except Exception as e:
+
+        print("START ERROR:", e)
+
+        bot.send_message(
+            message.chat.id,
+            "❌ Xatolik yuz berdi."
+        )
 
 
-# =========================
-# CALLBACK
-# =========================
+# ==================================================
+# CALLBACKLAR
+# ==================================================
 
 @bot.callback_query_handler(func=lambda call: True)
 def callbacks(call):
@@ -160,9 +201,9 @@ def callbacks(call):
 
     try:
 
-        # =====================
+        # ==========================================
         # TARIFLAR
-        # =====================
+        # ==========================================
 
         if call.data == "tariffs":
 
@@ -171,17 +212,21 @@ def callbacks(call):
             bot.edit_message_text(
                 "💳 <b>Tariflar</b>\n\n"
                 "O‘zingizga mos tarifni tanlang:",
+
                 call.message.chat.id,
                 call.message.message_id,
+
                 parse_mode="HTML",
                 reply_markup=tariffs_menu()
             )
 
-        # =====================
-        # TARIF TANLASH
-        # =====================
+            return
 
-        elif call.data.startswith("tariff_"):
+        # ==========================================
+        # TARIF TANLASH
+        # ==========================================
+
+        if call.data.startswith("tariff_"):
 
             bot.answer_callback_query(call.id)
 
@@ -192,15 +237,21 @@ def callbacks(call):
             tariff = get_tariff(tariff_id)
 
             if not tariff:
+
                 bot.send_message(
                     call.message.chat.id,
                     "❌ Tarif topilmadi."
                 )
+
                 return
 
-            tariff_id, name, price, days = tariff
+            tariff_id = tariff[0]
+            name = tariff[1]
+            price = tariff[2]
+            days = tariff[3]
 
             markup = types.InlineKeyboardMarkup()
+
             markup.add(
                 types.InlineKeyboardButton(
                     "💳 Sotib olish",
@@ -215,21 +266,27 @@ def callbacks(call):
                 )
             )
 
-            bot.send_message(
-                call.message.chat.id,
+            text = (
                 f"💳 <b>{name}</b>\n\n"
                 f"💰 Narxi: <b>{price:,} so‘m</b>\n"
                 f"⏳ Muddati: <b>{days} kun</b>\n\n"
-                "Sotib olish uchun tugmani bosing.",
+                "Sotib olish uchun tugmani bosing."
+            ).replace(",", " ")
+
+            bot.send_message(
+                call.message.chat.id,
+                text,
                 parse_mode="HTML",
                 reply_markup=markup
             )
 
-        # =====================
-        # SOTIB OLISH
-        # =====================
+            return
 
-        elif call.data.startswith("buy_"):
+        # ==========================================
+        # SOTIB OLISH
+        # ==========================================
+
+        if call.data.startswith("buy_"):
 
             bot.answer_callback_query(call.id)
 
@@ -240,13 +297,17 @@ def callbacks(call):
             tariff = get_tariff(tariff_id)
 
             if not tariff:
+
                 bot.send_message(
                     call.message.chat.id,
                     "❌ Tarif topilmadi."
                 )
+
                 return
 
-            tariff_id, name, price, days = tariff
+            name = tariff[1]
+            price = tariff[2]
+            days = tariff[3]
 
             purchase_id = create_purchase(
                 user_id,
@@ -262,9 +323,8 @@ def callbacks(call):
                 )
             )
 
-            bot.send_message(
-                call.message.chat.id,
-                "💳 <b>To‘lov</b>\n\n"
+            text = (
+                "💳 <b>TO‘LOV</b>\n\n"
                 f"📦 Tarif: <b>{name}</b>\n"
                 f"💰 Summa: <b>{price:,} so‘m</b>\n"
                 f"⏳ Muddat: <b>{days} kun</b>\n\n"
@@ -274,16 +334,23 @@ def callbacks(call):
                 f"<b>{CARD_OWNER}</b>\n\n"
                 f"🧾 Ariza: <code>#{purchase_id}</code>\n\n"
                 "To‘lovni amalga oshirgandan keyin "
-                "«To‘lov qildim» tugmasini bosing.",
+                "«✅ To‘lov qildim» tugmasini bosing."
+            ).replace(",", " ")
+
+            bot.send_message(
+                call.message.chat.id,
+                text,
                 parse_mode="HTML",
                 reply_markup=markup
             )
 
-        # =====================
-        # CHEK YUBORISH
-        # =====================
+            return
 
-        elif call.data.startswith("receipt_"):
+        # ==========================================
+        # CHEK YUBORISH
+        # ==========================================
+
+        if call.data.startswith("receipt_"):
 
             bot.answer_callback_query(call.id)
 
@@ -296,28 +363,34 @@ def callbacks(call):
             )
 
             if not purchase:
+
                 bot.send_message(
                     call.message.chat.id,
                     "❌ Ariza topilmadi."
                 )
+
                 return
 
             waiting_receipt[user_id] = purchase_id
 
             bot.send_message(
                 call.message.chat.id,
+
                 "📸 <b>To‘lov chekini yuboring.</b>\n\n"
                 "Chekni rasm ko‘rinishida yuboring.\n\n"
                 "Admin tekshirganidan keyin "
                 "tarifingiz aktiv qilinadi.",
+
                 parse_mode="HTML"
             )
 
-        # =====================
+            return
+
+        # ==========================================
         # QIDIRUV
-        # =====================
+        # ==========================================
 
-        elif call.data == "search_user":
+        if call.data == "search_user":
 
             bot.answer_callback_query(call.id)
 
@@ -325,8 +398,12 @@ def callbacks(call):
 
                 bot.send_message(
                     call.message.chat.id,
-                    "🔒 Qidiruvdan foydalanish uchun "
-                    "aktiv tarif kerak.",
+
+                    "🔒 <b>Qidiruv yopiq.</b>\n\n"
+                    "Qidiruvdan foydalanish uchun "
+                    "avval tarif sotib oling.",
+
+                    parse_mode="HTML",
                     reply_markup=tariffs_menu()
                 )
 
@@ -334,151 +411,206 @@ def callbacks(call):
 
             bot.send_message(
                 call.message.chat.id,
-                "🔎 Username yoki Telegram ID yuboring."
+
+                "🔎 <b>Foydalanuvchi qidirish</b>\n\n"
+                "Username yoki Telegram ID yuboring.\n\n"
+                "Masalan:\n"
+                "<code>@username</code>\n"
+                "yoki\n"
+                "<code>123456789</code>",
+
+                parse_mode="HTML"
             )
 
-        # =====================
+            return
+
+        # ==========================================
         # GURUHLAR
-        # =====================
+        # ==========================================
 
-        elif call.data == "groups":
+        if call.data == "groups":
 
             bot.answer_callback_query(call.id)
+
             if not has_active_tariff(user_id):
+
                 bot.send_message(
                     call.message.chat.id,
                     "🔒 Aktiv tarif kerak.",
                     reply_markup=tariffs_menu()
                 )
+
                 return
 
             bot.send_message(
                 call.message.chat.id,
-                "👥 Guruhlar bo‘limi "
-                "keyingi bosqichda qidiruv moduliga ulanadi."
+
+                "👥 <b>Guruhlar</b>\n\n"
+                "Real qidiruv moduli ulanmoqda.",
+
+                parse_mode="HTML"
             )
 
-        # =====================
+            return
+
+        # ==========================================
         # KANALLAR
-        # =====================
+        # ==========================================
 
-        elif call.data == "channels":
+        if call.data == "channels":
 
             bot.answer_callback_query(call.id)
 
             if not has_active_tariff(user_id):
+
                 bot.send_message(
                     call.message.chat.id,
                     "🔒 Aktiv tarif kerak.",
                     reply_markup=tariffs_menu()
                 )
+
                 return
 
             bot.send_message(
                 call.message.chat.id,
-                "📢 Kanallar bo‘limi "
-                "keyingi bosqichda ulanadi."
+
+                "📢 <b>Kanallar</b>\n\n"
+                "Real qidiruv moduli ulanmoqda.",
+
+                parse_mode="HTML"
             )
 
-        # =====================
+            return
+
+        # ==========================================
         # XABARLAR
-        # =====================
+        # ==========================================
 
-        elif call.data == "messages":
+        if call.data == "messages":
 
             bot.answer_callback_query(call.id)
 
             if not has_active_tariff(user_id):
+
                 bot.send_message(
                     call.message.chat.id,
                     "🔒 Aktiv tarif kerak.",
                     reply_markup=tariffs_menu()
                 )
+
                 return
 
             bot.send_message(
                 call.message.chat.id,
-                "💬 Qayerda yozgan bo‘limi "
-                "keyingi bosqichda ulanadi."
+
+                "💬 <b>Qayerda yozgan</b>\n\n"
+                "Real qidiruv moduli ulanmoqda.",
+
+                parse_mode="HTML"
             )
 
-        # =====================
+            return
+
+        # ==========================================
         # REAKSIYALAR
-        # =====================
+        # ==========================================
 
-        elif call.data == "reactions":
+        if call.data == "reactions":
 
             bot.answer_callback_query(call.id)
 
             if not has_active_tariff(user_id):
+
                 bot.send_message(
                     call.message.chat.id,
                     "🔒 Aktiv tarif kerak.",
                     reply_markup=tariffs_menu()
                 )
+
                 return
 
             bot.send_message(
                 call.message.chat.id,
-                "❤️ Reaksiyalar bo‘limi "
-                "keyingi bosqichda ulanadi."
+
+                "❤️ <b>Reaksiyalar</b>\n\n"
+                "Mavjud Telegram ma’lumotlari "
+                "doirasida tekshiriladi.",
+
+                parse_mode="HTML"
             )
 
-        # =====================
+            return
+
+        # ==========================================
         # TO‘LIQ MA'LUMOT
-        # =====================
+        # ==========================================
 
-        elif call.data == "full_info":
+        if call.data == "full_info":
 
             bot.answer_callback_query(call.id)
 
             if not has_active_tariff(user_id):
+
                 bot.send_message(
                     call.message.chat.id,
                     "🔒 Aktiv tarif kerak.",
                     reply_markup=tariffs_menu()
                 )
+
                 return
 
             bot.send_message(
                 call.message.chat.id,
-                "📊 To‘liq ma’lumot bo‘limi "
-                "qidiruv moduli tayyor bo‘lgach ishlaydi."
+
+                "📊 <b>To‘liq ma’lumot</b>\n\n"
+                "Qidiruv natijalari shu bo‘limda "
+                "birlashtiriladi.",
+
+                parse_mode="HTML"
             )
 
-        # =====================
-        # ORQAGA
-        # =====================
+            return
 
-        elif call.data == "back_main":
+        # ==========================================
+        # ASOSIY MENYU
+        # ==========================================
+
+        if call.data == "back_main":
 
             bot.answer_callback_query(call.id)
 
             bot.edit_message_text(
-                "🏠 <b>Asosiy menyu</b>",
+                "🏠 <b>Asosiy menyu</b>\n\n"
+                "Kerakli bo‘limni tanlang:",
+
                 call.message.chat.id,
                 call.message.message_id,
+
                 parse_mode="HTML",
                 reply_markup=main_menu()
             )
+
+            return
 
     except Exception as e:
 
         print("CALLBACK ERROR:", e)
 
         try:
+
             bot.answer_callback_query(
                 call.id,
                 "❌ Xatolik yuz berdi.",
                 show_alert=True
             )
+
         except Exception:
             pass
 
 
-# =========================
+# ==================================================
 # CHEK QABUL QILISH
-# =========================
+# ==================================================
 
 @bot.message_handler(content_types=["photo"])
 def receive_receipt(message):
@@ -503,6 +635,7 @@ def receive_receipt(message):
     if not purchase:
 
         del waiting_receipt[user_id]
+
         bot.send_message(
             message.chat.id,
             "❌ Ariza topilmadi."
@@ -510,7 +643,6 @@ def receive_receipt(message):
 
         return
 
-    # Admin uchun tugmalar
     markup = types.InlineKeyboardMarkup()
 
     markup.add(
@@ -531,13 +663,15 @@ def receive_receipt(message):
     else:
         username_text = "Username yo‘q"
 
+    price = purchase[8]
+
     admin_text = (
         "💳 <b>YANGI TO‘LOV</b>\n\n"
         f"🧾 Ariza: <code>#{purchase_id}</code>\n"
         f"👤 Foydalanuvchi: {username_text}\n"
         f"🆔 ID: <code>{user_id}</code>\n"
         f"📦 Tarif: <b>{purchase[7]}</b>\n"
-        f"💰 Summa: <b>{purchase[8]:,} so‘m</b>\n"
+        f"💰 Summa: <b>{price:,} so‘m</b>"
     ).replace(",", " ")
 
     bot.send_photo(
@@ -557,9 +691,9 @@ def receive_receipt(message):
     del waiting_receipt[user_id]
 
 
-# =========================
-# ADMIN TASDIQLASH / RAD ETISH
-# =========================
+# ==================================================
+# ADMIN TO‘LOV QARORI
+# ==================================================
 
 @bot.callback_query_handler(
     func=lambda call:
@@ -579,6 +713,10 @@ def admin_payment_callback(call):
         return
 
     try:
+
+        # ==========================================
+        # TASDIQLASH
+        # ==========================================
 
         if call.data.startswith("approve_"):
 
@@ -618,10 +756,12 @@ def admin_payment_callback(call):
 
             bot.send_message(
                 user_id,
+
                 "🎉 <b>To‘lov tasdiqlandi!</b>\n\n"
                 f"📦 Tarif: <b>{purchase[7]}</b>\n"
                 f"⏳ Muddat: <b>{purchase[9]} kun</b>\n\n"
                 "🔎 Qidiruv funksiyasi ochildi.",
+
                 parse_mode="HTML",
                 reply_markup=main_menu()
             )
@@ -637,7 +777,13 @@ def admin_payment_callback(call):
                 "✅ To‘lov tasdiqlandi!"
             )
 
-        elif call.data.startswith("reject_"):
+            return
+
+        # ==========================================
+        # RAD ETISH
+        # ==========================================
+
+        if call.data.startswith("reject_"):
 
             purchase_id = int(
                 call.data.split("_")[1]
@@ -665,11 +811,14 @@ def admin_payment_callback(call):
 
             bot.send_message(
                 user_id,
+
                 "❌ <b>To‘lov arizangiz rad etildi.</b>\n\n"
                 "Agar xato bo‘lgan deb hisoblasangiz, "
                 "admin bilan bog‘laning.",
+
                 parse_mode="HTML"
             )
+
             bot.edit_message_reply_markup(
                 call.message.chat.id,
                 call.message.message_id,
@@ -681,48 +830,65 @@ def admin_payment_callback(call):
                 "❌ Ariza rad etildi."
             )
 
+            return
+
     except Exception as e:
 
         print("ADMIN PAYMENT ERROR:", e)
 
-        bot.answer_callback_query(
-            call.id,
-            "❌ Xatolik yuz berdi.",
-            show_alert=True
-        )
+        try:
+
+            bot.answer_callback_query(
+                call.id,
+                "❌ Xatolik yuz berdi.",
+                show_alert=True
+            )
+
+        except Exception:
+            pass
 
 
-# =========================
+# ==================================================
 # BOSHQA XABARLAR
-# =========================
+# ==================================================
 
 @bot.message_handler(func=lambda message: True)
 def other_messages(message):
 
-    save_user(message.from_user)
+    try:
 
-    bot.send_message(
-        message.chat.id,
-        "ℹ️ Menyudan foydalaning.",
-        reply_markup=main_menu()
-    )
+        save_user(message.from_user)
 
-# =========================
-# START BOT
-# =========================
-if name == "main":
+        bot.send_message(
+            message.chat.id,
+            "ℹ️ Menyudagi tugmalardan foydalaning.",
+            reply_markup=main_menu()
+        )
+
+    except Exception as e:
+
+        print("MESSAGE ERROR:", e)
+
+
+# ==================================================
+# BOTNI ISHGA TUSHIRISH
+# ==================================================
+
+if __name__ == "__main__":
+
+    print("================================")
+    print("🗄️ DATABASE ISHGA TUSHMOQDA")
+    print("================================")
+
     init_database()
 
     print("================================")
-    print("🤖 BOT ISHGA TUSHDI")
+    print("🤖 TELEGRAM SEARCH BOT")
+    print("================================")
+    print("✅ BOT ISHGA TUSHDI")
     print("================================")
 
     bot.infinity_polling(
-        skip_pending=True,
-        timeout=60,
-        long_polling_timeout=60
-    )
-
         skip_pending=True,
         timeout=60,
         long_polling_timeout=60
