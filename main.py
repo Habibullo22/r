@@ -22,7 +22,12 @@ from database import (
     has_active_tariff,
 )
 
-from telegram_client import create_client
+from telegram_client import (
+    telegram_client,
+    start_client,
+    get_me,
+    run_async,
+)
 
 from search import (
     find_user,
@@ -30,7 +35,6 @@ from search import (
     search_user_messages,
     search_user_chats,
 )
-
 
 # =========================================================
 # TEKSHIRUV
