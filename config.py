@@ -8,3 +8,6 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
 API_ID = int(os.getenv("API_ID", "0"))
 API_HASH = os.getenv("API_HASH", "")
+
+CARD_NUMBER = os.getenv("CARD_NUMBER", "")
+CARD_OWNER = os.getenv("CARD_OWNER", "")
