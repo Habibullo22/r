@@ -1,4 +1,6 @@
-from telethon.tl.types import User, Chat, Channel
+from telethon.tl.types import User, Channel, Chat
+from telethon.tl.functions.contacts import SearchRequest
+from telethon.tl.functions.messages import SearchGlobalRequest
 
 
 # =========================================================
@@ -15,7 +17,7 @@ def clean_username(value):
 
 
 # =========================================================
-# USER TOPISH
+# PROFIL QIDIRISH
 # =========================================================
 
 async def find_user(client, query):
@@ -29,31 +31,85 @@ async def find_user(client, query):
 
         # Telegram ID
         if query.isdigit():
-            return await client.get_entity(int(query))
+
+            try:
+                return await client.get_entity(
+                    int(query)
+                )
+            except Exception:
+                pass
 
         # Username
         username = clean_username(query)
 
-        if not username:
-            return None
+        if username:
 
-        return await client.get_entity(username)
+            try:
+                return await client.get_entity(
+                    username
+                )
+            except Exception:
+                pass
+
+        # Public Telegram qidiruvi
+        try:
+
+            result = await client(
+                SearchRequest(
+                    q=query,
+                    limit=20
+                )
+            )
+
+            for user in result.users:
+
+                if isinstance(user, User):
+
+                    # Username mosligi
+                    if (
+                        user.username
+                        and user.username.lower()
+                        == username.lower()
+                    ):
+                        return user
+
+                    # Ism bo‘yicha moslik
+                    full_name = (
+                        f"{user.first_name or ''} "
+                        f"{user.last_name or ''}"
+                    ).strip().lower()
+
+                    if query.lower() in full_name:
+                        return user
+
+        except Exception as e:
+
+            print(
+                "PUBLIC USER SEARCH ERROR:",
+                repr(e)
+            )
 
     except Exception as e:
 
-        print("FIND USER ERROR:", repr(e))
+        print(
+            "FIND USER ERROR:",
+            repr(e)
+        )
 
-        return None
+    return None
 
 
 # =========================================================
-# USER FORMAT
+# PROFIL FORMAT
 # =========================================================
 
 def format_user(user):
 
     if not isinstance(user, User):
-        return "❌ Foydalanuvchi topilmadi."
+
+        return (
+            "❌ <b>FOYDALANUVCHI TOPILMADI</b>"
+        )
 
     first_name = user.first_name or ""
     last_name = user.last_name or ""
@@ -68,427 +124,457 @@ def format_user(user):
         else "Username yo‘q"
     )
 
+    verified = (
+        "✅ Tasdiqlangan"
+        if getattr(user, "verified", False)
+        else "—"
+    )
+
     return (
-        "👤 <b>FOYDALANUVCHI</b>\n\n"
+        "👤 <b>PROFIL</b>\n\n"
         f"📝 Ism: <b>{full_name or 'Noma’lum'}</b>\n"
         f"👤 Username: <b>{username}</b>\n"
-        f"🆔 ID: <code>{user.id}</code>"
+        f"🆔 ID: <code>{user.id}</code>\n"
+        f"☑️ Status: <b>{verified}</b>"
     )
 
 
 # =========================================================
-# CHATLARNI OLISH
+# GLOBAL PUBLIC QIDIRUV
 # =========================================================
 
-async def get_my_chats(client):
+async def global_search(client, query, limit=100):
 
-    result = []
+    results = {
+        "users": [],
+        "channels": [],
+        "groups": [],
+        "messages": [],
+        "reactions": []
+    }
+
+    query = (query or "").strip()
+
+    if not query:
+        return results
 
     try:
 
-        async for dialog in client.iter_dialogs():
+        # =================================================
+        # TELEGRAM GLOBAL MESSAGE SEARCH
+        # =================================================
 
-            entity = dialog.entity
+        response = await client(
+            SearchGlobalRequest(
+                q=query,
+                filter=None,
+                min_date=None,
+                max_date=None,
+                offset_id=0,
+                offset_rate=0,
+                max_id=0,
+                min_id=0,
+                limit=limit
+            )
+        )
 
-            # Faqat guruh va kanallar
-            if isinstance(entity, (Chat, Channel)):
+        # =================================================
+        # USERS / CHATS
+        # =================================================
 
-                # Channel ichidan haqiqiy kanal/supergroup
-                # ekanligini saqlab qolamiz
-                if isinstance(entity, Channel):
+        for user in response.users:
 
-                    if getattr(
-                        entity,
-                        "broadcast",
-                        False
-                    ):
+            if isinstance(user, User):
 
-                        chat_type = "channel"
+                results["users"].append(user)
 
-                    else:
+        for chat in response.chats:
 
-                        chat_type = "group"
+            if isinstance(chat, Channel):
+
+                # Megagroup = guruh
+                if getattr(
+                    chat,
+                    "megagroup",
+                    False
+                ):
+
+                    results["groups"].append(chat)
 
                 else:
 
-                    chat_type = "group"
+                    results["channels"].append(chat)
 
-                result.append({
-                    "id": entity.id,
-                    "title": dialog.title or "Noma’lum",
-                    "entity": entity,
-                    "type": chat_type
-                })
+            elif isinstance(chat, Chat):
+
+                results["groups"].append(chat)
+
+        # =================================================
+        # XABARLAR
+        # =================================================
+
+        for message in response.messages:
+
+            if message is not None:
+
+                results["messages"].append(
+                    message
+                )
 
     except Exception as e:
 
         print(
-            "GET CHATS ERROR:",
+            "GLOBAL SEARCH ERROR:",
             repr(e)
         )
+
+    # =====================================================
+    # DUPLIKATLARNI OLIB TASHLASH
+    # =====================================================
+
+    results["users"] = unique_entities(
+        results["users"]
+    )
+
+    results["channels"] = unique_entities(
+        results["channels"]
+    )
+
+    results["groups"] = unique_entities(
+        results["groups"]
+    )
+
+    return results
+
+
+# =========================================================
+# UNIQUE
+# =========================================================
+
+def unique_entities(items):
+
+    result = []
+    seen = set()
+
+    for item in items:
+
+        item_id = getattr(
+            item,
+            "id",
+            None
+        )
+
+        if item_id is None:
+            continue
+
+        if item_id in seen:
+            continue
+
+        seen.add(item_id)
+
+        result.append(item)
 
     return result
 
 
 # =========================================================
-# GURUHLARNI TEKSHIRISH
+# KANALLAR FORMAT
 # =========================================================
 
-async def search_user_groups(
-    client,
-    user,
-    progress_callback=None
-):
+def format_channels(channels, limit=50):
 
-    found = []
+    text = "📢 <b>KANALLAR</b>\n\n"
 
-    try:
+    if not channels:
 
-        dialogs = await get_my_chats(client)
-
-        groups = [
-            dialog
-            for dialog in dialogs
-            if dialog["type"] == "group"
-        ]
-
-        total = len(groups)
-
-        checked = 0
-
-        for dialog in groups:
-
-            entity = dialog["entity"]
-
-            try:
-
-                # Telegram API orqali mavjud
-                # permission ma'lumotini tekshirish
-
-                participant = await client.get_permissions(
-                    entity,
-                    user
-                )
-
-                if participant:
-
-                    found.append({
-                        "title": dialog["title"],
-                        "entity": entity,
-                        "type": "group"
-                    })
-
-            except Exception as e:
-
-                print(
-                    f"GROUP ERROR "
-                    f"{dialog['title']}: {e}"
-                )
-
-            checked += 1
-
-            # REAL PROGRESS
-            if progress_callback:
-
-                await progress_callback(
-                    checked,
-                    total
-                )
-
-    except Exception as e:
-
-        print(
-            "GROUP SEARCH ERROR:",
-            repr(e)
+        return (
+            text +
+            "❌ Public kanal topilmadi."
         )
 
-    return found
+    for i, channel in enumerate(
+        channels[:limit],
+        1
+    ):
 
-
-# =========================================================
-# KANALLARNI TEKSHIRISH
-# =========================================================
-
-async def search_user_channels(
-    client,
-    user,
-    progress_callback=None
-):
-
-    found = []
-
-    try:
-
-        dialogs = await get_my_chats(client)
-
-        channels = [
-            dialog
-            for dialog in dialogs
-            if dialog["type"] == "channel"
-        ]
-
-        total = len(channels)
-
-        checked = 0
-
-        for dialog in channels:
-
-            entity = dialog["entity"]
-
-            try:
-
-                participant = await client.get_permissions(
-                    entity,
-                    user
-                )
-
-                if participant:
-
-                    found.append({
-                        "title": dialog["title"],
-                        "entity": entity,
-                        "type": "channel"
-                    })
-
-            except Exception as e:
-
-                print(
-                    f"CHANNEL ERROR "
-                    f"{dialog['title']}: {e}"
-                )
-
-            checked += 1
-
-            # REAL PROGRESS
-            if progress_callback:
-
-                await progress_callback(
-                    checked,
-                    total
-                )
-
-    except Exception as e:
-
-        print(
-            "CHANNEL SEARCH ERROR:",
-            repr(e)
+        username = getattr(
+            channel,
+            "username",
+            None
         )
 
-    return found
+        if username:
 
+            username_text = (
+                f"@{username}"
+            )
 
-# =========================================================
-# UMUMIY CHAT QIDIRUV
-# =========================================================
+        else:
 
-async def search_user_chats(
-    client,
-    user
-):
+            username_text = (
+                "Username yo‘q"
+            )
 
-    found = []
-
-    try:
-
-        dialogs = await get_my_chats(client)
-
-        for dialog in dialogs:
-
-            entity = dialog["entity"]
-
-            try:
-
-                participant = await client.get_permissions(
-                    entity,
-                    user
-                )
-
-                if participant:
-
-                    found.append({
-                        "title": dialog["title"],
-                        "entity": entity,
-                        "type": dialog["type"]
-                    })
-
-            except Exception as e:
-
-                print(
-                    f"CHAT ERROR "
-                    f"{dialog['title']}: {e}"
-                )
-
-                continue
-
-    except Exception as e:
-
-        print(
-            "CHAT SEARCH ERROR:",
-            repr(e)
+        title = getattr(
+            channel,
+            "title",
+            "Noma’lum"
         )
 
-    return found
-
-
-# =========================================================
-# USER XABARLARINI QIDIRISH
-# =========================================================
-
-async def search_user_messages(
-    client,
-    user,
-    limit_per_chat=30,
-    progress_callback=None
-):
-
-    results = []
-
-    try:
-
-        dialogs = await get_my_chats(client)
-
-        total = len(dialogs)
-
-        checked = 0
-
-        for dialog in dialogs:
-
-            entity = dialog["entity"]
-
-            try:
-
-                messages = await client.get_messages(
-                    entity,
-                    limit=limit_per_chat,
-                    from_user=user.id
-                )
-
-                valid_messages = [
-                    message
-                    for message in messages
-                    if message is not None
-                ]
-
-                if valid_messages:
-
-                    results.append({
-                        "title": dialog["title"],
-                        "entity": entity,
-                        "messages": valid_messages
-                    })
-
-            except Exception as e:
-
-                print(
-                    f"MESSAGE ERROR "
-                    f"{dialog['title']}: {e}"
-                )
-
-            checked += 1
-
-            # REAL PROGRESS
-            if progress_callback:
-
-                await progress_callback(
-                    checked,
-                    total
-                )
-
-    except Exception as e:
-
-        print(
-            "MESSAGE SEARCH ERROR:",
-            repr(e)
+        text += (
+            f"{i}. <b>{title}</b>\n"
+            f"   👤 {username_text}\n"
+            f"   🆔 <code>{channel.id}</code>\n\n"
         )
 
-    return results
+    return text
+
+
+# =========================================================
+# GURUHLAR FORMAT
+# =========================================================
+
+def format_groups(groups, limit=50):
+
+    text = "👥 <b>GURUHLAR</b>\n\n"
+
+    if not groups:
+
+        return (
+            text +
+            "❌ Public guruh topilmadi."
+        )
+
+    for i, group in enumerate(
+        groups[:limit],
+        1
+    ):
+
+        username = getattr(
+            group,
+            "username",
+            None
+        )
+
+        if username:
+
+            username_text = (
+                f"@{username}"
+            )
+
+        else:
+
+            username_text = (
+                "Username yo‘q"
+            )
+
+        title = getattr(
+            group,
+            "title",
+            "Noma’lum"
+        )
+
+        text += (
+            f"{i}. <b>{title}</b>\n"
+            f"   👤 {username_text}\n"
+            f"   🆔 <code>{group.id}</code>\n\n"
+        )
+
+    return text
+
+
+# =========================================================
+# XABARLAR FORMAT
+# =========================================================
+
+def format_messages(messages, limit=30):
+
+    text = "💬 <b>XABARLAR</b>\n\n"
+
+    if not messages:
+
+        return (
+            text +
+            "❌ Public xabar topilmadi."
+        )
+
+    for i, message in enumerate(
+        messages[:limit],
+        1
+    ):
+
+        message_text = (
+            getattr(
+                message,
+                "message",
+                None
+            )
+            or "(matn yo‘q)"
+        )
+
+        message_text = (
+            message_text
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
+
+        if len(message_text) > 300:
+
+            message_text = (
+                message_text[:300]
+                + "..."
+            )
+
+        text += (
+            f"{i}. {message_text}\n\n"
+        )
+
+    return text
 
 
 # =========================================================
 # REAKSIYALAR
 # =========================================================
 
-async def search_user_reactions(
+async def search_reactions(
     client,
-    user,
-    progress_callback=None
+    messages
 ):
 
-    """
-    Telegram API ruxsat bergan mavjud
-    reaksiya ma'lumotlarini tekshiradi.
+    reactions = []
 
-    Muhim:
-    Telegram boshqa foydalanuvchining barcha
-    reaksiyalarini global tarzda beradigan API
-    bermaydi.
-    """
+    for message in messages:
 
-    results = []
+        try:
 
-    try:
+            reaction_data = getattr(
+                message,
+                "reactions",
+                None
+            )
 
-        dialogs = await get_my_chats(client)
+            if not reaction_data:
+                continue
 
-        total = len(dialogs)
+            results = getattr(
+                reaction_data,
+                "results",
+                []
+            )
 
-        checked = 0
+            for reaction in results:
 
-        for dialog in dialogs:
+                reactions.append({
+                    "message_id":
+                        getattr(
+                            message,
+                            "id",
+                            None
+                        ),
 
-            entity = dialog["entity"]
+                    "reaction":
+                        reaction
+                })
 
-            try:
+        except Exception as e:
 
-                # So'nggi xabarlarni ko'ramiz.
-                # Faqat mavjud reaksiya ma'lumotlari olinadi.
+            print(
+                "REACTION ERROR:",
+                repr(e)
+            )
 
-                messages = await client.get_messages(
-                    entity,
-                    limit=50
-                )
+    return reactions
 
-                for message in messages:
 
-                    if not message:
-                        continue
+# =========================================================
+# REAKSIYA FORMAT
+# =========================================================
 
-                    reactions = getattr(
-                        message,
-                        "reactions",
-                        None
-                    )
+def format_reactions(
+    reactions,
+    limit=50
+):
 
-                    if not reactions:
-                        continue
+    text = "❤️ <b>REAKSIYALAR</b>\n\n"
 
-                    results.append({
-                        "title": dialog["title"],
-                        "message_id": message.id,
-                        "reactions": reactions
-                    })
+    if not reactions:
 
-            except Exception as e:
-
-                print(
-                    f"REACTION ERROR "
-                    f"{dialog['title']}: {e}"
-                )
-
-            checked += 1
-
-            if progress_callback:
-
-                await progress_callback(
-                    checked,
-                    total
-                )
-
-    except Exception as e:
-
-        print(
-            "REACTION SEARCH ERROR:",
-            repr(e)
+        return (
+            text +
+            "❌ Reaksiya ma’lumotlari topilmadi."
         )
 
-    return results
+    for i, item in enumerate(
+        reactions[:limit],
+        1
+    ):
+
+        reaction = item.get(
+            "reaction"
+        )
+
+        count = getattr(
+            reaction,
+            "count",
+            0
+        )
+
+        text += (
+            f"{i}. ❤️ "
+            f"Reaksiyalar: <b>{count}</b>\n"
+        )
+
+    return text
+
+
+# =========================================================
+# UMUMIY NATIJA
+# =========================================================
+
+def format_summary(results):
+
+    users = len(
+        results.get(
+            "users",
+            []
+        )
+    )
+
+    channels = len(
+        results.get(
+            "channels",
+            []
+        )
+    )
+
+    groups = len(
+        results.get(
+            "groups",
+            []
+        )
+    )
+
+    messages = len(
+        results.get(
+            "messages",
+            []
+        )
+    )
+
+    reactions = len(
+        results.get(
+            "reactions",
+            []
+        )
+    )
+
+    return (
+        "📊 <b>UMUMIY NATIJA</b>\n\n"
+        f"👤 Profillar: <b>{users}</b>\n"
+        f"📢 Kanallar: <b>{channels}</b>\n"
+        f"👥 Guruhlar: <b>{groups}</b>\n"
+        f"💬 Xabarlar: <b>{messages}</b>\n"
+        f"❤️ Reaksiyalar: <b>{reactions}</b>\n\n"
+        "🌐 Qidiruv public Telegram "
+        "manbalaridagi natijalarga asoslangan."
+    )
